@@ -10,7 +10,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:typegen": "supabase gen types typescript --project-id gmmdwnzjrnkontieoige > database-generated.types.ts"
+    "db:typegen": "supabase gen types typescript --project-id qmugeneiwkonrcbmpnaf > database-generated.types.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.2",

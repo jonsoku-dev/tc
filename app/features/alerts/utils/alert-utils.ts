@@ -24,7 +24,7 @@ export async function sendCampaignCreatedAlert({
     const promises = recipientIds.map(recipientId =>
         AlertService.createAlert({
             recipientId,
-            alertType: ALERT_TYPE.CAMPAIGN_CREATED,
+            alertType: ALERT_TYPE.SYSTEM_NOTIFICATION,
             title,
             content,
             link,
@@ -59,7 +59,7 @@ export async function sendApplicationReceivedAlert({
 
     await AlertService.createAlert({
         recipientId,
-        alertType: ALERT_TYPE.APPLICATION_RECEIVED,
+        alertType: ALERT_TYPE.SYSTEM_NOTIFICATION,
         title,
         content,
         link,

@@ -23,6 +23,49 @@ export default [
         ]),
     ]),
 
+    // 전자책 관련 라우트
+    ...prefix("/ebooks", [
+        index("features/ebooks/pages/ebooks-page.page.tsx"),
+        route("/new", "features/ebooks/pages/ebook-new-page.page.tsx"),
+        route("/:ebookId", "features/ebooks/pages/ebook-detail-page.page.tsx"),
+        route("/:ebookId/edit", "features/ebooks/pages/ebook-edit-page.page.tsx"),
+    ]),
+
+    // 인터뷰 관련 라우트
+    ...prefix("/interviews", [
+        index("features/interviews/pages/interviews-page.page.tsx"),
+        route("/new", "features/interviews/pages/interview-new-page.page.tsx"),
+        route("/:interviewId", "features/interviews/pages/interview-detail-page.page.tsx"),
+    ]),
+
+    // 구매 관련 라우트
+    ...prefix("/purchases", [
+        index("features/purchases/pages/purchases-page.page.tsx"),
+        route("/cart", "features/purchases/pages/cart-page.page.tsx"),
+        route("/checkout", "features/purchases/pages/checkout-page.page.tsx"),
+        route("/success", "features/purchases/pages/purchase-success-page.page.tsx"),
+    ]),
+
+    // 구독 관련 라우트
+    ...prefix("/subscriptions", [
+        index("features/subscriptions/pages/subscriptions-page.page.tsx"),
+        route("/plans", "features/subscriptions/pages/subscription-plans-page.page.tsx"),
+        route("/my", "features/subscriptions/pages/my-subscription-page.page.tsx"),
+    ]),
+
+    // 알림 관련 라우트
+    ...prefix("/notifications", [
+        index("features/notifications/pages/notifications-page.page.tsx"),
+        route("/settings", "features/notifications/pages/notification-settings-page.page.tsx"),
+    ]),
+
+    // 활동 관련 라우트
+    ...prefix("/activities", [
+        index("features/activities/pages/activities-page.page.tsx"),
+        route("/reviews", "features/activities/pages/reviews-page.page.tsx"),
+        route("/bookmarks", "features/activities/pages/bookmarks-page.page.tsx"),
+    ]),
+
     // // 사용자 계정 관련 라우트 (인증된 모든 사용자)
     // ...prefix("/my", [
     //     // 알림 관련 라우트
