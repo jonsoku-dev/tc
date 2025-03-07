@@ -1,13 +1,325 @@
 import { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { Button } from "~/common/components/ui/button";
-import { Plus, ChevronUp, ChevronDown, Trash, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, ChevronUp, ChevronDown, Trash, GripVertical } from "lucide-react";
 import { cn } from "~/common/lib/utils";
 import { Input } from "~/common/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "~/common/components/ui/select";
 import { BlockEditor } from "./blocks";
 import type { PageItem as PageItemInterface, PageEditorProps } from "./types";
 import type { Block, BlockType } from "../types";
+
+// @dnd-kit 라이브러리 import
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+} from "@dnd-kit/core";
+import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+// 정렬 가능한 페이지 아이템 컴포넌트
+function SortablePage({
+    page,
+    index,
+    expandedPageId,
+    expandedBlockId,
+    editable,
+    togglePageExpand,
+    updatePageTitle,
+    removePage,
+    addBlock,
+    updateBlock,
+    removeBlock,
+    toggleBlockExpand,
+    onBlocksReorder,
+}: {
+    page: PageItemInterface;
+    index: number;
+    expandedPageId: string | null;
+    expandedBlockId: string | null;
+    editable: boolean;
+    togglePageExpand: (id: string) => void;
+    updatePageTitle: (id: string, title: string) => void;
+    removePage: (id: string) => void;
+    addBlock: (pageId: string, blockType: BlockType) => void;
+    updateBlock: (pageId: string, blockId: string, updatedBlock: Partial<Block>) => void;
+    removeBlock: (pageId: string, blockId: string) => void;
+    toggleBlockExpand: (id: string) => void;
+    onBlocksReorder: (pageId: string, blocks: Block[]) => void;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: page.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className="border rounded-lg overflow-hidden transition-all duration-200"
+        >
+            <div className={cn(
+                "p-3 flex items-center justify-between",
+                isDragging ? "bg-blue-50" : "bg-gray-50"
+            )}>
+                <div className="flex items-center gap-2">
+                    {editable && (
+                        <div
+                            {...attributes}
+                            {...listeners}
+                            className="cursor-grab active:cursor-grabbing hover:bg-gray-100 p-1 rounded transition-colors"
+                        >
+                            <GripVertical className="h-4 w-4 text-gray-400" />
+                        </div>
+                    )}
+                    {expandedPageId === page.id ? (
+                        <Input
+                            value={page.title}
+                            onChange={(e) => updatePageTitle(page.id, e.target.value)}
+                            className="w-64"
+                        />
+                    ) : (
+                        <div className="font-medium">{page.title}</div>
+                    )}
+                </div>
+                <div className="flex items-center gap-1">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => togglePageExpand(page.id)}
+                    >
+                        {expandedPageId === page.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </Button>
+                    {editable && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removePage(page.id)}
+                        >
+                            <Trash className="h-4 w-4 text-red-500" />
+                        </Button>
+                    )}
+                </div>
+            </div>
+            {expandedPageId === page.id && (
+                <div className="p-4 space-y-4">
+                    {page.blocks.length > 0 && (
+                        <BlockList
+                            pageId={page.id}
+                            blocks={page.blocks}
+                            editable={editable}
+                            expandedBlockId={expandedBlockId}
+                            toggleBlockExpand={toggleBlockExpand}
+                            updateBlock={updateBlock}
+                            removeBlock={removeBlock}
+                            onBlocksReorder={onBlocksReorder}
+                        />
+                    )}
+
+                    {/* 블록 추가 버튼 */}
+                    {editable && (
+                        <div className="pt-2">
+                            <Select onValueChange={(value) => addBlock(page.id, value as BlockType)}>
+                                <SelectTrigger className="bg-white hover:bg-gray-50 transition-colors">
+                                    <div className="flex items-center">
+                                        <Plus className="h-4 w-4 mr-2 text-blue-500" />
+                                        <SelectValue placeholder="블록 추가" />
+                                    </div>
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="paragraph">문단</SelectItem>
+                                    <SelectItem value="heading">제목</SelectItem>
+                                    <SelectItem value="image">이미지</SelectItem>
+                                    <SelectItem value="code">코드</SelectItem>
+                                    <SelectItem value="table">테이블</SelectItem>
+                                    <SelectItem value="video">비디오</SelectItem>
+                                    <SelectItem value="audio">오디오</SelectItem>
+                                    <SelectItem value="markdown">마크다운</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// 정렬 가능한 블록 아이템 컴포넌트
+function SortableBlock({
+    block,
+    pageId,
+    editable,
+    expandedBlockId,
+    toggleBlockExpand,
+    updateBlock,
+    removeBlock,
+}: {
+    block: Block;
+    pageId: string;
+    editable: boolean;
+    expandedBlockId: string | null;
+    toggleBlockExpand: (id: string) => void;
+    updateBlock: (pageId: string, blockId: string, updatedBlock: Partial<Block>) => void;
+    removeBlock: (pageId: string, blockId: string) => void;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: block.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={cn(
+                "border rounded p-3 transition-all duration-200",
+                isDragging ? "shadow-lg border-blue-400 ring-2 ring-blue-200 bg-blue-50" : ""
+            )}
+        >
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                    {editable && (
+                        <div
+                            {...attributes}
+                            {...listeners}
+                            className="cursor-grab active:cursor-grabbing hover:bg-gray-100 p-1 rounded transition-colors"
+                        >
+                            <GripVertical className="h-4 w-4 text-gray-400" />
+                        </div>
+                    )}
+                    <div className="text-sm text-gray-500">
+                        {block.type}
+                    </div>
+                </div>
+                {editable && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeBlock(pageId, block.id)}
+                    >
+                        <Trash className="h-3 w-3 text-red-500" />
+                    </Button>
+                )}
+            </div>
+            <BlockEditor
+                pageId={pageId}
+                block={block}
+                isExpanded={expandedBlockId === block.id}
+                toggleBlockExpand={toggleBlockExpand}
+                updateBlock={updateBlock}
+            />
+        </div>
+    );
+}
+
+// 블록 목록 컴포넌트
+function BlockList({
+    pageId,
+    blocks,
+    editable,
+    expandedBlockId,
+    toggleBlockExpand,
+    updateBlock,
+    removeBlock,
+    onBlocksReorder,
+}: {
+    pageId: string;
+    blocks: Block[];
+    editable: boolean;
+    expandedBlockId: string | null;
+    toggleBlockExpand: (id: string) => void;
+    updateBlock: (pageId: string, blockId: string, updatedBlock: Partial<Block>) => void;
+    removeBlock: (pageId: string, blockId: string) => void;
+    onBlocksReorder: (pageId: string, blocks: Block[]) => void;
+}) {
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (over && active.id !== over.id) {
+            const oldIndex = blocks.findIndex(block => block.id === active.id);
+            const newIndex = blocks.findIndex(block => block.id === over.id);
+
+            const updatedBlocks = arrayMove(blocks, oldIndex, newIndex).map((block, index) => ({
+                ...block,
+                position: index + 1,
+            }));
+
+            // 상위 컴포넌트의 콜백 호출
+            onBlocksReorder(pageId, updatedBlocks);
+        }
+    };
+
+    return (
+        <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+        >
+            <SortableContext
+                items={blocks.map(block => block.id)}
+                strategy={verticalListSortingStrategy}
+            >
+                <div className="space-y-3">
+                    {blocks.map((block) => (
+                        <SortableBlock
+                            key={block.id}
+                            block={block}
+                            pageId={pageId}
+                            editable={editable}
+                            expandedBlockId={expandedBlockId}
+                            toggleBlockExpand={toggleBlockExpand}
+                            updateBlock={updateBlock}
+                            removeBlock={removeBlock}
+                        />
+                    ))}
+                </div>
+            </SortableContext>
+        </DndContext>
+    );
+}
 
 export function PageEditor({
     pages,
@@ -17,94 +329,52 @@ export function PageEditor({
 }: PageEditorProps) {
     const [expandedPageId, setExpandedPageId] = useState<string | null>(null);
     const [expandedBlockId, setExpandedBlockId] = useState<string | null>(null);
+    const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
-    // 페이지 위로 이동
-    const movePageUp = (index: number) => {
-        if (index === 0) return;
+    // 센서 설정
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
 
-        const updatedPages = [...pages];
-        const temp = updatedPages[index];
-        updatedPages[index] = updatedPages[index - 1];
-        updatedPages[index - 1] = temp;
-
-        // 위치 업데이트
-        const reorderedPages = updatedPages.map((page, idx) => ({
-            ...page,
-            position: idx + 1,
-        }));
-
-        onPagesChange?.(reorderedPages);
+    // 드래그 시작 처리
+    const handleDragStart = (event: DragStartEvent) => {
+        setActiveDragId(event.active.id as string);
     };
 
-    // 페이지 아래로 이동
-    const movePageDown = (index: number) => {
-        if (index === pages.length - 1) return;
+    // 드래그 종료 처리
+    const handleDragEnd = (event: DragEndEvent) => {
+        setActiveDragId(null);
+        const { active, over } = event;
 
-        const updatedPages = [...pages];
-        const temp = updatedPages[index];
-        updatedPages[index] = updatedPages[index + 1];
-        updatedPages[index + 1] = temp;
+        if (over && active.id !== over.id) {
+            const oldIndex = pages.findIndex(page => page.id === active.id);
+            const newIndex = pages.findIndex(page => page.id === over.id);
 
-        // 위치 업데이트
-        const reorderedPages = updatedPages.map((page, idx) => ({
-            ...page,
-            position: idx + 1,
-        }));
+            const updatedPages = arrayMove(pages, oldIndex, newIndex).map((page, index) => ({
+                ...page,
+                position: index + 1,
+            }));
 
-        onPagesChange?.(reorderedPages);
+            onPagesChange?.(updatedPages);
+        }
     };
 
-    // 블록 위로 이동
-    const moveBlockUp = (pageId: string, blockIndex: number) => {
-        if (blockIndex === 0) return;
-
+    // 블록 순서 변경 처리
+    const handleBlocksReorder = (pageId: string, updatedBlocks: Block[]) => {
         const pageIndex = pages.findIndex(p => p.id === pageId);
         if (pageIndex === -1) return;
 
-        const page = pages[pageIndex];
-        const updatedBlocks = [...page.blocks];
-        const temp = updatedBlocks[blockIndex];
-        updatedBlocks[blockIndex] = updatedBlocks[blockIndex - 1];
-        updatedBlocks[blockIndex - 1] = temp;
-
-        // 위치 업데이트
-        const reorderedBlocks = updatedBlocks.map((block, idx) => ({
-            ...block,
-            position: idx + 1,
-        }));
-
         const updatedPages = [...pages];
         updatedPages[pageIndex] = {
-            ...page,
-            blocks: reorderedBlocks,
-        };
-
-        onPagesChange?.(updatedPages);
-    };
-
-    // 블록 아래로 이동
-    const moveBlockDown = (pageId: string, blockIndex: number) => {
-        const pageIndex = pages.findIndex(p => p.id === pageId);
-        if (pageIndex === -1) return;
-
-        const page = pages[pageIndex];
-        if (blockIndex === page.blocks.length - 1) return;
-
-        const updatedBlocks = [...page.blocks];
-        const temp = updatedBlocks[blockIndex];
-        updatedBlocks[blockIndex] = updatedBlocks[blockIndex + 1];
-        updatedBlocks[blockIndex + 1] = temp;
-
-        // 위치 업데이트
-        const reorderedBlocks = updatedBlocks.map((block, idx) => ({
-            ...block,
-            position: idx + 1,
-        }));
-
-        const updatedPages = [...pages];
-        updatedPages[pageIndex] = {
-            ...page,
-            blocks: reorderedBlocks,
+            ...updatedPages[pageIndex],
+            blocks: updatedBlocks,
         };
 
         onPagesChange?.(updatedPages);
@@ -370,46 +640,15 @@ export function PageEditor({
         setExpandedBlockId(expandedBlockId === id ? null : id);
     };
 
-    return (
-        <div className={`page-editor ${className}`}>
-            <div className="space-y-4 p-2 rounded-lg">
-                {pages.map((page, index) => (
-                    <div key={page.id} className="border rounded-lg overflow-hidden">
-                        <div className="p-3 flex items-center justify-between bg-gray-50">
-                            <div className="flex items-center gap-2">
-                                {editable && (
-                                    <div className="flex items-center gap-1">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => movePageUp(index)}
-                                            disabled={index === 0}
-                                            className="h-8 w-8 p-0"
-                                        >
-                                            <ArrowUp className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => movePageDown(index)}
-                                            disabled={index === pages.length - 1}
-                                            className="h-8 w-8 p-0"
-                                        >
-                                            <ArrowDown className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                )}
-                                {expandedPageId === page.id ? (
-                                    <Input
-                                        value={page.title}
-                                        onChange={(e) => updatePageTitle(page.id, e.target.value)}
-                                        className="w-64"
-                                    />
-                                ) : (
-                                    <div className="font-medium">{page.title}</div>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-1">
+    // 드래그 앤 드롭 기능이 비활성화된 경우 간단한 렌더링
+    if (!editable) {
+        return (
+            <div className={`page-editor ${className}`}>
+                <div className="space-y-4 p-2 rounded-lg">
+                    {pages.map((page) => (
+                        <div key={page.id} className="border rounded-lg overflow-hidden">
+                            <div className="p-3 flex items-center justify-between bg-gray-50">
+                                <div className="font-medium">{page.title}</div>
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -417,59 +656,13 @@ export function PageEditor({
                                 >
                                     {expandedPageId === page.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                 </Button>
-                                {editable && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => removePage(page.id)}
-                                    >
-                                        <Trash className="h-4 w-4 text-red-500" />
-                                    </Button>
-                                )}
                             </div>
-                        </div>
-                        {expandedPageId === page.id && (
-                            <div className="p-4 space-y-4">
-                                <div className="space-y-3">
-                                    {page.blocks.map((block, blockIndex) => (
+                            {expandedPageId === page.id && (
+                                <div className="p-4 space-y-4">
+                                    {page.blocks.map((block) => (
                                         <div key={block.id} className="border rounded p-3">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    {editable && (
-                                                        <div className="flex items-center gap-1">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() => moveBlockUp(page.id, blockIndex)}
-                                                                disabled={blockIndex === 0}
-                                                                className="h-6 w-6 p-0"
-                                                            >
-                                                                <ArrowUp className="h-3 w-3" />
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() => moveBlockDown(page.id, blockIndex)}
-                                                                disabled={blockIndex === page.blocks.length - 1}
-                                                                className="h-6 w-6 p-0"
-                                                            >
-                                                                <ArrowDown className="h-3 w-3" />
-                                                            </Button>
-                                                        </div>
-                                                    )}
-                                                    <div className="text-sm text-gray-500">
-                                                        {block.type}
-                                                    </div>
-                                                </div>
-                                                {editable && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => removeBlock(page.id, block.id)}
-                                                    >
-                                                        <Trash className="h-3 w-3 text-red-500" />
-                                                    </Button>
-                                                )}
+                                            <div className="text-sm text-gray-500 mb-2">
+                                                {block.type}
                                             </div>
                                             <BlockEditor
                                                 pageId={page.id}
@@ -481,47 +674,58 @@ export function PageEditor({
                                         </div>
                                     ))}
                                 </div>
-
-                                {/* 블록 추가 버튼 */}
-                                {editable && (
-                                    <div className="pt-2">
-                                        <Select onValueChange={(value) => addBlock(page.id, value as BlockType)}>
-                                            <SelectTrigger className="bg-white hover:bg-gray-50 transition-colors">
-                                                <div className="flex items-center">
-                                                    <Plus className="h-4 w-4 mr-2 text-blue-500" />
-                                                    <SelectValue placeholder="블록 추가" />
-                                                </div>
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="paragraph">문단</SelectItem>
-                                                <SelectItem value="heading">제목</SelectItem>
-                                                <SelectItem value="image">이미지</SelectItem>
-                                                <SelectItem value="code">코드</SelectItem>
-                                                <SelectItem value="table">테이블</SelectItem>
-                                                <SelectItem value="video">비디오</SelectItem>
-                                                <SelectItem value="audio">오디오</SelectItem>
-                                                <SelectItem value="markdown">마크다운</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                ))}
+                            )}
+                        </div>
+                    ))}
+                </div>
             </div>
+        );
+    }
+
+    return (
+        <div className={`page-editor ${className}`}>
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+            >
+                <SortableContext
+                    items={pages.map(page => page.id)}
+                    strategy={verticalListSortingStrategy}
+                >
+                    <div className="space-y-4 p-2 rounded-lg">
+                        {pages.map((page, index) => (
+                            <SortablePage
+                                key={page.id}
+                                page={page}
+                                index={index}
+                                expandedPageId={expandedPageId}
+                                expandedBlockId={expandedBlockId}
+                                editable={editable}
+                                togglePageExpand={togglePageExpand}
+                                updatePageTitle={updatePageTitle}
+                                removePage={removePage}
+                                addBlock={addBlock}
+                                updateBlock={updateBlock}
+                                removeBlock={removeBlock}
+                                toggleBlockExpand={toggleBlockExpand}
+                                onBlocksReorder={handleBlocksReorder}
+                            />
+                        ))}
+                    </div>
+                </SortableContext>
+            </DndContext>
 
             {/* 페이지 추가 버튼 */}
-            {editable && (
-                <Button
-                    variant="outline"
-                    className="mt-4 w-full hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors"
-                    onClick={addPage}
-                >
-                    <Plus className="h-4 w-4 mr-2 text-blue-500" />
-                    새 페이지 추가
-                </Button>
-            )}
+            <Button
+                variant="outline"
+                className="mt-4 w-full hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                onClick={addPage}
+            >
+                <Plus className="h-4 w-4 mr-2 text-blue-500" />
+                새 페이지 추가
+            </Button>
         </div>
     );
 }

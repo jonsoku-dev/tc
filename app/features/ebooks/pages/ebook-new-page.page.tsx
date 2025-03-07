@@ -32,6 +32,11 @@ export async function action({ request }: Route.ActionArgs) {
     const price = formData.get("price") ? parseFloat(formData.get("price") as string) : null;
     const status = formData.get("status") as "draft" | "published" | "archived" || "draft";
 
+    // 유효성 검사
+    if (!title || title.trim() === "") {
+        return { error: "제목을 입력해주세요." };
+    }
+
     // 메타데이터 추출
     const pageCount = formData.get("pageCount") ? parseInt(formData.get("pageCount") as string, 10) : null;
     const readingTime = formData.get("readingTime") ? parseInt(formData.get("readingTime") as string, 10) : null;
@@ -128,6 +133,7 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
     const [publicationDate, setPublicationDate] = useState("");
     const [pages, setPages] = useState<PageItem[]>([]);
     const [activeTab, setActiveTab] = useState("basic");
+    const [formError, setFormError] = useState<string | null>(actionData?.error || null);
 
     // 폼 제출 후 리디렉션
     if (actionData?.success) {
@@ -149,6 +155,18 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
         setPageCount(updatedPages.length.toString());
     };
 
+    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        // 폼 제출 전 유효성 검사
+        if (!title.trim()) {
+            e.preventDefault();
+            setFormError("제목을 입력해주세요.");
+            setActiveTab("basic");
+            return;
+        }
+
+        setFormError(null);
+    };
+
     return (
         <div className="container mx-auto py-8">
             <Button
@@ -160,7 +178,14 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                 전자책 목록으로 돌아가기
             </Button>
 
-            <Form method="post" className="space-y-8" id="new-ebook-form">
+            <Form method="post" className="space-y-8" id="new-ebook-form" onSubmit={handleSubmit}>
+                {formError && (
+                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                        <strong className="font-bold">오류:</strong>
+                        <span className="block sm:inline"> {formError}</span>
+                    </div>
+                )}
+
                 <Tabs defaultValue="basic" value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="basic">기본 정보</TabsTrigger>
