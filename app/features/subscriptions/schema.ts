@@ -4,7 +4,7 @@ import { relations } from "drizzle-orm";
 import { SUBSCRIPTION_STATUS } from "./constants";
 import { users } from "../users/schema";
 
-const subscriptionStatusEnum = pgEnum("status", SUBSCRIPTION_STATUS);
+export const subscriptionStatusEnum = pgEnum("subscription_status", SUBSCRIPTION_STATUS);
 
 export const subscription_plans = pgTable("subscription_plans", {
   plan_id: uuid("plan_id").primaryKey().defaultRandom(),
@@ -20,7 +20,7 @@ export const subscriptions = pgTable("subscriptions", {
   plan_id: uuid("plan_id")
     .notNull()
     .references(() => subscription_plans.plan_id, { onDelete: "cascade" }),
-  status: subscriptionStatusEnum("status").notNull().default("active"),
+  subscription_status: subscriptionStatusEnum("subscription_status").notNull().default("active"),
 });
 
 export const subscription_invoices = pgTable("subscription_invoices", {

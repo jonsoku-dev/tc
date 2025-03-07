@@ -5,7 +5,7 @@ import { USER_ACTION_TYPES } from "./constants";
 import { users } from "../users/schema";
 import { ebooks } from "../ebooks/schema";
 
-const actionTypeEnum = pgEnum("action_type", USER_ACTION_TYPES);
+export const actionTypeEnum = pgEnum("action_type", USER_ACTION_TYPES);
 
 export const user_actions = pgTable("user_actions", {
   action_id: uuid("action_id").primaryKey().defaultRandom(),

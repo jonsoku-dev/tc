@@ -6,7 +6,7 @@ import {
     boolean,
     pgEnum,
 } from "drizzle-orm/pg-core";
-import { profiles } from "~/features/users/schema";
+import { users } from "~/features/users/schema";
 import { ALERT_TYPE, ALERT_STATUS } from "./constants";
 
 export const alertTypeEnum = pgEnum("alert_type", [
@@ -23,9 +23,9 @@ export const alerts = pgTable("alerts", {
     alert_id: uuid("alert_id").primaryKey().defaultRandom(),
     recipient_id: uuid("recipient_id")
         .notNull()
-        .references(() => profiles.profile_id),
+        .references(() => users.user_id),
     sender_id: uuid("sender_id")
-        .references(() => profiles.profile_id),
+        .references(() => users.user_id),
     alert_type: alertTypeEnum("alert_type").notNull(),
     title: text("title").notNull(),
     content: text("content").notNull(),
@@ -42,7 +42,7 @@ export const alertSettings = pgTable("alert_settings", {
     setting_id: uuid("setting_id").primaryKey().defaultRandom(),
     profile_id: uuid("profile_id")
         .notNull()
-        .references(() => profiles.profile_id),
+        .references(() => users.user_id),
     email_notifications: boolean("email_notifications").default(true),
     push_notifications: boolean("push_notifications").default(true),
     line_notifications: boolean("line_notifications").default(true),

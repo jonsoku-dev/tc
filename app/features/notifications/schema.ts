@@ -4,7 +4,7 @@ import { relations } from "drizzle-orm";
 import { NOTIFICATION_TYPES } from "./constants";
 import { users } from "../users/schema";
 
-const notificationTypeEnum = pgEnum("notification_type", NOTIFICATION_TYPES);
+export const notificationTypeEnum = pgEnum("notification_type", NOTIFICATION_TYPES);
 
 export const notifications = pgTable("notifications", {
   notification_id: uuid("notification_id").primaryKey().defaultRandom(),

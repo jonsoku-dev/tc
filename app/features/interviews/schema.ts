@@ -4,7 +4,7 @@ import { relations } from "drizzle-orm";
 import { INTERVIEW_QUESTION_TYPES } from "./constants";
 import { ebooks } from "../ebooks/schema";
 
-const questionTypeEnum = pgEnum("question_type", INTERVIEW_QUESTION_TYPES);
+export const questionTypeEnum = pgEnum("question_type", INTERVIEW_QUESTION_TYPES);
 
 export const interview_questions = pgTable("interview_questions", {
   question_id: uuid("question_id").primaryKey().defaultRandom(),

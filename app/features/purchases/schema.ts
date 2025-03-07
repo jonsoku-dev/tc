@@ -5,7 +5,7 @@ import { PAYMENT_TYPES } from "./constants";
 import { users } from "../users/schema";
 import { ebooks } from "../ebooks/schema";
 
-const paymentTypeEnum = pgEnum("payment_type", PAYMENT_TYPES);
+export const paymentTypeEnum = pgEnum("payment_type", PAYMENT_TYPES);
 
 export const sales = pgTable("sales", {
   sale_id: uuid("sale_id").primaryKey().defaultRandom(),
