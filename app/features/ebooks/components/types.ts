@@ -32,7 +32,6 @@ export interface Ebook {
     title: string;
     description: string;
     cover_image_url: string;
-    table_of_contents: string[];
     page_count: number;
     pages: EbookPage[];
 }
@@ -43,6 +42,7 @@ export interface EbookPage {
     page_id: string;
     ebook_id: string;
     page_number: number;
+    position: number;
     title?: string;
     content_type: PageContentType;
     content: PageContent;

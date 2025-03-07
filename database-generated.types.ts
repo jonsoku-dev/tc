@@ -338,6 +338,7 @@ export type Database = {
           ebook_id: string
           page_id: string
           page_number: number
+          position: number
           title: string | null
           updated_at: string | null
         }
@@ -348,6 +349,7 @@ export type Database = {
           ebook_id: string
           page_id?: string
           page_number: number
+          position: number
           title?: string | null
           updated_at?: string | null
         }
@@ -358,6 +360,7 @@ export type Database = {
           ebook_id?: string
           page_id?: string
           page_number?: number
+          position?: number
           title?: string | null
           updated_at?: string | null
         }
@@ -415,7 +418,6 @@ export type Database = {
           publication_date: string | null
           reading_time: number | null
           sample_content: string | null
-          table_of_contents: Json | null
           title: string
           updated_at: string | null
           user_id: string
@@ -434,7 +436,6 @@ export type Database = {
           publication_date?: string | null
           reading_time?: number | null
           sample_content?: string | null
-          table_of_contents?: Json | null
           title: string
           updated_at?: string | null
           user_id: string
@@ -453,7 +454,6 @@ export type Database = {
           publication_date?: string | null
           reading_time?: number | null
           sample_content?: string | null
-          table_of_contents?: Json | null
           title?: string
           updated_at?: string | null
           user_id?: string

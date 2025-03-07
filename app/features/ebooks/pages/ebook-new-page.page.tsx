@@ -11,7 +11,8 @@ import { ArrowLeft, Save } from "lucide-react";
 import { EBOOK_STATUS } from "../constants";
 import { EbookCover } from "../components/ebook-cover";
 import { MarkdownEditor } from "../components/markdown-editor";
-import { TableOfContents } from "../components/table-of-contents";
+import { PageEditor } from "../components/page-editor";
+import type { PageItem } from "../components/page-editor";
 import { getServerClient } from "~/server";
 import type { Route } from "./+types/ebook-new-page.page";
 
@@ -40,10 +41,9 @@ export async function action({ request }: Route.ActionArgs) {
     const publicationDate = formData.get("publicationDate") as string || null;
 
     // 콘텐츠 추출
-    const content = formData.get("content") as string || "";
     const sampleContent = formData.get("sampleContent") as string || "";
-    const tableOfContents = formData.get("tableOfContents") ?
-        JSON.parse(formData.get("tableOfContents") as string) :
+    const pages = formData.get("pages") ?
+        JSON.parse(formData.get("pages") as string) :
         [];
 
     // 커버 이미지 처리 (실제 구현에서는 스토리지에 업로드)
@@ -55,16 +55,15 @@ export async function action({ request }: Route.ActionArgs) {
         title,
         description,
         price,
-        status,
-        page_count: pageCount,
+        ebook_status: status,
+        page_count: pages.length || 0,
         reading_time: readingTime,
         language,
         isbn,
         is_featured: isFeatured,
         publication_date: publicationDate,
         cover_image_url: coverImageUrl,
-        sample_content: sampleContent,
-        table_of_contents: tableOfContents
+        sample_content: sampleContent
     };
 
     // Supabase에 전자책 정보 저장
@@ -79,29 +78,25 @@ export async function action({ request }: Route.ActionArgs) {
         return { error: "전자책 생성 중 오류가 발생했습니다." };
     }
 
-    // 첫 페이지 생성 (목차)
-    if (ebook) {
+    // 페이지 생성
+    if (ebook && pages.length > 0) {
         try {
-            await supabase
-                .from("ebook_pages")
-                .insert({
-                    ebook_id: ebook.ebook_id,
-                    page_number: 1,
-                    title: "목차",
-                    content_type: "text",
-                    content: { content: tableOfContents.join("\n") }
-                });
+            const pagesData = pages.map((page: PageItem) => ({
+                ebook_id: ebook.ebook_id,
+                page_number: page.position,
+                position: page.position,
+                title: page.title,
+                content_type: page.content_type,
+                content: page.content
+            }));
 
-            // 본문 페이지 생성
-            await supabase
+            const { error: pagesError } = await supabase
                 .from("ebook_pages")
-                .insert({
-                    ebook_id: ebook.ebook_id,
-                    page_number: 2,
-                    title: "본문",
-                    content_type: "text",
-                    content: { content }
-                });
+                .insert(pagesData);
+
+            if (pagesError) {
+                console.error("페이지 생성 중 오류가 발생했습니다:", pagesError);
+            }
         } catch (pageError) {
             console.error("페이지 생성 중 오류가 발생했습니다:", pageError);
         }
@@ -123,7 +118,6 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
     const [description, setDescription] = useState("");
     const [price, setPrice] = useState("");
     const [status, setStatus] = useState<string>("draft");
-    const [content, setContent] = useState("");
     const [sampleContent, setSampleContent] = useState("");
     const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
     const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
@@ -133,7 +127,7 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
     const [isbn, setIsbn] = useState("");
     const [isFeatured, setIsFeatured] = useState(false);
     const [publicationDate, setPublicationDate] = useState("");
-    const [tableOfContents, setTableOfContents] = useState<string[]>([]);
+    const [pages, setPages] = useState<PageItem[]>([]);
     const [activeTab, setActiveTab] = useState("basic");
 
     // 폼 제출 후 리디렉션
@@ -148,6 +142,12 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
             setCoverImagePreview(e.target?.result as string);
         };
         reader.readAsDataURL(file);
+    };
+
+    const handlePagesChange = (updatedPages: PageItem[]) => {
+        setPages(updatedPages);
+        // 페이지 수 자동 업데이트
+        setPageCount(updatedPages.length.toString());
     };
 
     return (
@@ -166,7 +166,7 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                     <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="basic">기본 정보</TabsTrigger>
                         <TabsTrigger value="metadata">메타데이터</TabsTrigger>
-                        <TabsTrigger value="content">콘텐츠</TabsTrigger>
+                        <TabsTrigger value="pages">페이지</TabsTrigger>
                         <TabsTrigger value="sample">샘플 콘텐츠</TabsTrigger>
                     </TabsList>
 
@@ -292,7 +292,9 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                                             onChange={(e) => setPageCount(e.target.value)}
                                             placeholder="페이지 수를 입력하세요"
                                             min="1"
+                                            readOnly
                                         />
+                                        <p className="text-xs text-gray-500">페이지 수는 자동으로 계산됩니다.</p>
                                     </div>
 
                                     <div className="space-y-2">
@@ -344,44 +346,29 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                                         />
                                     </div>
                                 </div>
-
-                                <div className="space-y-2">
-                                    <Label>목차</Label>
-                                    <TableOfContents
-                                        items={tableOfContents}
-                                        editable={true}
-                                        onItemsChange={setTableOfContents}
-                                    />
-                                    <input
-                                        type="hidden"
-                                        name="table_of_contents"
-                                        value={JSON.stringify(tableOfContents)}
-                                    />
-                                </div>
                             </CardContent>
                         </Card>
                     </TabsContent>
 
-                    {/* 콘텐츠 탭 */}
-                    <TabsContent value="content" className="space-y-6">
+                    {/* 페이지 탭 */}
+                    <TabsContent value="pages" className="space-y-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-2xl">콘텐츠 작성</CardTitle>
+                                <CardTitle className="text-2xl">페이지 관리</CardTitle>
                                 <CardDescription>
-                                    마크다운 형식으로 콘텐츠를 작성하세요.
+                                    전자책의 페이지를 추가하고 관리하세요.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <MarkdownEditor
-                                    value={content}
-                                    onChange={setContent}
-                                    placeholder="마크다운 형식으로 콘텐츠를 작성하세요"
-                                    minHeight={500}
+                                <PageEditor
+                                    pages={pages}
+                                    editable={true}
+                                    onPagesChange={handlePagesChange}
                                 />
                                 <input
                                     type="hidden"
-                                    name="content"
-                                    value={content}
+                                    name="pages"
+                                    value={JSON.stringify(pages)}
                                 />
                             </CardContent>
                         </Card>

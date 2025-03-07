@@ -44,7 +44,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
         .from("ebook_pages")
         .select("*")
         .eq("ebook_id", params.ebookId)
-        .order("page_number", { ascending: true });
+        .order("position", { ascending: true });
 
     // 리뷰 가져오기
     const { data: reviews, error: reviewsError } = await supabase
@@ -197,8 +197,16 @@ export default function EbookDetailPage({ loaderData }: Route.ComponentProps) {
         console.log("하이라이트 노트 업데이트:", { highlightId, note });
     };
 
-    // 타입 안전을 위한 기본값 설정
-    const tableOfContents = ebook.table_of_contents as string[] || [];
+    // 페이지 목차 생성
+    const generateTableOfContents = () => {
+        if (!pages || pages.length === 0) return [];
+
+        // 페이지 위치(position)에 따라 정렬
+        const sortedPages = [...pages].sort((a, b) => (a.position || 0) - (b.position || 0));
+        return sortedPages.map(page => page.title || `페이지 ${page.page_number}`);
+    };
+
+    const tableOfContents = generateTableOfContents();
     const pageCount = ebook.page_count || 0;
 
     // 페이지 내용 처리

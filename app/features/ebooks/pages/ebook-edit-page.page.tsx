@@ -9,14 +9,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/common/components/ui
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/common/components/ui/select";
 import { ArrowLeft, Save } from "lucide-react";
 import { format } from "date-fns";
-import { EBOOK_STATUS } from "../constants";
+import { EBOOK_STATUS, PAGE_CONTENT_TYPE } from "../constants";
 import { EbookCover } from "../components/ebook-cover";
 import { MarkdownEditor } from "../components/markdown-editor";
-import { TableOfContents } from "../components/table-of-contents";
+import { PageEditor } from "../components/page-editor";
+import type { PageItem } from "../components/page-editor";
 import type { Route } from "./+types/ebook-edit-page.page";
 import { createClient } from "~/supa-client";
 import { useSupabase } from "~/common/hooks/use-supabase";
 import { toast } from "sonner";
+
+// PAGE_CONTENT_TYPE 타입 정의
+type PageContentType = typeof PAGE_CONTENT_TYPE[number];
 
 export async function loader({ params }: Route.LoaderArgs) {
     const ebookId = params.ebookId;
@@ -53,16 +57,11 @@ export async function loader({ params }: Route.LoaderArgs) {
             .from('ebook_pages')
             .select('*')
             .eq('ebook_id', ebookId)
-            .order('page_number', { ascending: true });
+            .order('position', { ascending: true });
 
         if (pagesError) {
             console.error("전자책 페이지 조회 오류:", pagesError);
             throw new Response("전자책 페이지를 가져오는 중 오류가 발생했습니다.", { status: 500 });
-        }
-
-        // 페이지 제목을 기반으로 목차 생성 (필요한 경우)
-        if (!ebook.table_of_contents || !Array.isArray(ebook.table_of_contents) || ebook.table_of_contents.length === 0) {
-            ebook.table_of_contents = pages?.map(page => page.title || `${page.page_number}페이지`) || [];
         }
 
         return {
@@ -106,8 +105,7 @@ export async function action({ request, params }: Route.ActionArgs) {
         const isbn = formData.get("isbn") as string;
         const coverImageUrl = formData.get("coverImageUrl") as string;
         const sampleContent = formData.get("sampleContent") as string;
-        const tableOfContents = JSON.parse(formData.get("tableOfContents") as string || "[]");
-        const content = formData.get("content") as string;
+        const pages = JSON.parse(formData.get("pages") as string || "[]");
 
         // status 값이 유효한지 확인
         if (!EBOOK_STATUS.includes(status as any)) {
@@ -129,7 +127,7 @@ export async function action({ request, params }: Route.ActionArgs) {
                 isbn,
                 cover_image_url: coverImageUrl,
                 sample_content: sampleContent,
-                table_of_contents: tableOfContents,
+                page_count: pages.length
             })
             .eq('ebook_id', ebookId);
 
@@ -142,54 +140,118 @@ export async function action({ request, params }: Route.ActionArgs) {
         const { data: existingPages, error: pagesError } = await supabase
             .from('ebook_pages')
             .select('*')
-            .eq('ebook_id', ebookId)
-            .order('page_number', { ascending: true });
+            .eq('ebook_id', ebookId);
 
         if (pagesError) {
             console.error("전자책 페이지 조회 오류:", pagesError);
             return { success: false, error: "전자책 페이지를 조회하는 중 오류가 발생했습니다." };
         }
 
-        // 목차와 페이지 동기화
-        // 1. 목차 항목 수와 페이지 수가 다르면 페이지 업데이트
-        if (tableOfContents.length !== existingPages?.length) {
-            // 페이지 수가 더 많으면 초과 페이지 삭제
-            if (existingPages && existingPages.length > tableOfContents.length) {
-                const pagesToDelete = existingPages.slice(tableOfContents.length);
-                for (const page of pagesToDelete) {
-                    await supabase
-                        .from('ebook_pages')
-                        .delete()
-                        .eq('page_id', page.page_id);
-                }
-            }
+        // 페이지 업데이트 로직
+        // 1. 기존 페이지 ID를 맵으로 저장
+        const existingPageMap = new Map();
+        existingPages?.forEach(page => {
+            existingPageMap.set(page.page_id, page);
+        });
 
-            // 페이지 수가 더 적으면 새 페이지 추가
-            if (existingPages && existingPages.length < tableOfContents.length) {
-                const newPages = tableOfContents.slice(existingPages.length).map((title: string, index: number) => ({
+        // 2. 새 페이지 데이터 준비
+        const pagesToUpdate: Array<{
+            page_id: string;
+            title: string;
+            content_type: PageContentType;
+            content: any;
+            position: number;
+            page_number: number;
+        }> = [];
+
+        const pagesToCreate: Array<{
+            ebook_id: string;
+            title: string;
+            content_type: PageContentType;
+            content: any;
+            position: number;
+            page_number: number;
+        }> = [];
+
+        const pageIdsToKeep = new Set<string>();
+
+        pages.forEach((page: PageItem) => {
+            // 기존 페이지 ID가 있는 경우 업데이트
+            if (page.id.startsWith('page-id-')) {
+                const pageId = page.id.replace('page-id-', '');
+                pageIdsToKeep.add(pageId);
+
+                pagesToUpdate.push({
+                    page_id: pageId,
+                    title: page.title,
+                    content_type: page.content_type as PageContentType,
+                    content: page.content,
+                    position: page.position,
+                    page_number: page.position // 페이지 번호와 위치를 동일하게 설정
+                });
+            } else {
+                // 새 페이지 생성
+                pagesToCreate.push({
                     ebook_id: ebookId,
-                    page_number: existingPages.length + index + 1,
-                    title,
-                    content_type: 'text',
-                    content: { content: `# ${title}\n\n내용을 입력하세요.`, style: {} }
-                }));
+                    title: page.title,
+                    content_type: page.content_type as PageContentType,
+                    content: page.content,
+                    position: page.position,
+                    page_number: page.position // 페이지 번호와 위치를 동일하게 설정
+                });
+            }
+        });
 
-                if (newPages.length > 0) {
-                    await supabase
-                        .from('ebook_pages')
-                        .insert(newPages);
-                }
+        // 3. 삭제할 페이지 ID 목록 생성
+        const pageIdsToDelete: string[] = [];
+        existingPages?.forEach(page => {
+            if (!pageIdsToKeep.has(page.page_id)) {
+                pageIdsToDelete.push(page.page_id);
+            }
+        });
+
+        // 4. 트랜잭션 처리
+        // 4.1. 삭제할 페이지 처리
+        if (pageIdsToDelete.length > 0) {
+            const { error: deleteError } = await supabase
+                .from('ebook_pages')
+                .delete()
+                .in('page_id', pageIdsToDelete);
+
+            if (deleteError) {
+                console.error("페이지 삭제 오류:", deleteError);
+                return { success: false, error: "페이지를 삭제하는 중 오류가 발생했습니다." };
             }
         }
 
-        // 2. 기존 페이지 제목 업데이트
-        const pagesToUpdate = Math.min(tableOfContents.length, existingPages?.length || 0);
-        for (let i = 0; i < pagesToUpdate; i++) {
-            if (existingPages && existingPages[i].title !== tableOfContents[i]) {
-                await supabase
-                    .from('ebook_pages')
-                    .update({ title: tableOfContents[i] })
-                    .eq('page_id', existingPages[i].page_id);
+        // 4.2. 업데이트할 페이지 처리
+        for (const page of pagesToUpdate) {
+            const { error: updatePageError } = await supabase
+                .from('ebook_pages')
+                .update({
+                    title: page.title,
+                    content_type: page.content_type,
+                    content: page.content,
+                    position: page.position,
+                    page_number: page.page_number
+                })
+                .eq('page_id', page.page_id);
+
+            if (updatePageError) {
+                console.error("페이지 업데이트 오류:", updatePageError);
+                return { success: false, error: "페이지를 업데이트하는 중 오류가 발생했습니다." };
+            }
+        }
+
+        // 4.3. 새 페이지 생성
+        if (pagesToCreate.length > 0) {
+            const { error: createError } = await supabase
+                .from('ebook_pages')
+                .insert(pagesToCreate);
+
+            if (createError) {
+                console.error("페이지 생성 오류:", createError);
+                return { success: false, error: "페이지를 생성하는 중 오류가 발생했습니다." };
             }
         }
 
@@ -229,42 +291,23 @@ export default function EbookEditPage({ loaderData, actionData }: Route.Componen
     const [isbn, setIsbn] = useState(ebook.isbn || "");
     const [coverImageUrl, setCoverImageUrl] = useState(ebook.cover_image_url || "");
     const [sampleContent, setSampleContent] = useState(ebook.sample_content || "");
-    const [tableOfContents, setTableOfContents] = useState<string[]>(
-        Array.isArray(ebook.table_of_contents) ? ebook.table_of_contents as string[] : []
-    );
-    const [content, setContent] = useState<string>("");
+    const [pages, setPages] = useState<PageItem[]>([]);
     const [activeTab, setActiveTab] = useState("basic");
     const [isSaving, setIsSaving] = useState(false);
-    const [showTocSyncAlert, setShowTocSyncAlert] = useState(false);
 
-    // 전자책 버전 정보 가져오기
+    // 페이지 데이터 초기화
     useEffect(() => {
-        async function fetchEbookContent() {
-            if (ebook.ebook_id) {
-                try {
-                    const supabase = createClient({
-                        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
-                        supabaseKey: import.meta.env.VITE_SUPABASE_KEY,
-                    });
-
-                    const { data, error } = await supabase
-                        .from('ebook_versions')
-                        .select('content_markdown')
-                        .eq('ebook_id', ebook.ebook_id)
-                        .order('version_number', { ascending: false })
-                        .limit(1);
-
-                    if (!error && data && data.length > 0) {
-                        setContent(data[0].content_markdown || "");
-                    }
-                } catch (error) {
-                    console.error("전자책 콘텐츠 로딩 오류:", error);
-                }
-            }
+        if (ebook.pages && ebook.pages.length > 0) {
+            const formattedPages = ebook.pages.map((page: any) => ({
+                id: `page-id-${page.page_id}`, // 기존 페이지 ID를 식별할 수 있도록 접두사 추가
+                title: page.title || `페이지 ${page.page_number}`,
+                content_type: page.content_type,
+                content: page.content,
+                position: page.position || page.page_number
+            }));
+            setPages(formattedPages);
         }
-
-        fetchEbookContent();
-    }, [ebook.ebook_id]);
+    }, [ebook.pages]);
 
     // 액션 결과 처리
     useEffect(() => {
@@ -283,28 +326,6 @@ export default function EbookEditPage({ loaderData, actionData }: Route.Componen
         }
     }, [actionData]);
 
-    // 목차 변경 시 페이지와의 동기화 알림 표시
-    useEffect(() => {
-        if (ebook.pages && ebook.pages.length > 0) {
-            const pageCount = ebook.pages.length;
-            const tocCount = tableOfContents.length;
-
-            if (pageCount !== tocCount) {
-                setShowTocSyncAlert(true);
-            } else {
-                // 제목 비교
-                let hasDifference = false;
-                for (let i = 0; i < pageCount; i++) {
-                    if (ebook.pages[i].title !== tableOfContents[i]) {
-                        hasDifference = true;
-                        break;
-                    }
-                }
-                setShowTocSyncAlert(hasDifference);
-            }
-        }
-    }, [tableOfContents, ebook.pages]);
-
     const handleCoverImageChange = (file: File) => {
         // 실제 구현에서는 Supabase Storage에 이미지를 업로드하고 URL을 설정합니다.
         // 여기서는 간단히 File 객체를 URL로 변환하여 미리보기만 제공합니다.
@@ -312,8 +333,8 @@ export default function EbookEditPage({ loaderData, actionData }: Route.Componen
         setCoverImageUrl(url);
     };
 
-    const handleTableOfContentsChange = (items: string[]) => {
-        setTableOfContents(items);
+    const handlePagesChange = (updatedPages: PageItem[]) => {
+        setPages(updatedPages);
     };
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -324,8 +345,8 @@ export default function EbookEditPage({ loaderData, actionData }: Route.Componen
         const form = e.currentTarget;
         const formData = new FormData(form);
 
-        // 목차 데이터 추가 (JSON 문자열로 변환)
-        formData.set("tableOfContents", JSON.stringify(tableOfContents));
+        // 페이지 데이터 추가 (JSON 문자열로 변환)
+        formData.set("pages", JSON.stringify(pages));
 
         // 폼 제출
         fetch(form.action, {
@@ -339,7 +360,6 @@ export default function EbookEditPage({ loaderData, actionData }: Route.Componen
                         description: "전자책 정보가 성공적으로 저장되었습니다.",
                     });
                     setIsSaving(false);
-                    setShowTocSyncAlert(false);
                 } else {
                     toast("저장 실패", {
                         description: data.error || "저장 중 오류가 발생했습니다.",
@@ -377,8 +397,7 @@ export default function EbookEditPage({ loaderData, actionData }: Route.Componen
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <TabsList className="mb-6">
                         <TabsTrigger value="basic">기본 정보</TabsTrigger>
-                        <TabsTrigger value="content">콘텐츠</TabsTrigger>
-                        <TabsTrigger value="toc">목차</TabsTrigger>
+                        <TabsTrigger value="pages">페이지</TabsTrigger>
                         <TabsTrigger value="sample">샘플</TabsTrigger>
                     </TabsList>
 
@@ -531,44 +550,19 @@ export default function EbookEditPage({ loaderData, actionData }: Route.Componen
                         </div>
                     </TabsContent>
 
-                    <TabsContent value="content">
+                    <TabsContent value="pages">
                         <Card>
                             <CardHeader>
-                                <CardTitle>전자책 콘텐츠</CardTitle>
+                                <CardTitle>페이지 관리</CardTitle>
                                 <CardDescription>
-                                    마크다운 형식으로 전자책 콘텐츠를 작성하세요.
+                                    전자책의 페이지를 관리하세요. 페이지를 추가, 삭제, 순서 변경할 수 있습니다.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <MarkdownEditor
-                                    value={content}
-                                    onChange={setContent}
-                                    minHeight={600}
-                                />
-                                <input type="hidden" name="content" value={content} />
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    <TabsContent value="toc">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>목차 관리</CardTitle>
-                                <CardDescription>
-                                    전자책의 목차를 관리하세요. 목차 항목을 추가, 삭제, 순서 변경할 수 있습니다.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                {showTocSyncAlert && (
-                                    <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md text-yellow-800">
-                                        <p className="font-medium">목차와 페이지가 동기화되지 않았습니다.</p>
-                                        <p className="text-sm">목차를 변경하면 저장 시 페이지 구조도 함께 업데이트됩니다. 페이지가 추가되거나 삭제될 수 있습니다.</p>
-                                    </div>
-                                )}
-                                <TableOfContents
-                                    items={tableOfContents}
+                                <PageEditor
+                                    pages={pages}
                                     editable={true}
-                                    onItemsChange={handleTableOfContentsChange}
+                                    onPagesChange={handlePagesChange}
                                 />
                             </CardContent>
                         </Card>

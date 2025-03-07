@@ -31,7 +31,6 @@ export const ebooks = pgTable("ebooks", {
   // 새로운 필드 추가
   cover_image_url: text("cover_image_url"),
   sample_content: text("sample_content"),
-  table_of_contents: jsonb("table_of_contents").$type<string[]>().default([]),
   page_count: integer("page_count").default(0),
   language: varchar("language", { length: 50 }).default("ko"),
   publication_date: timestamp("publication_date"),
@@ -49,6 +48,7 @@ export const ebook_pages = pgTable("ebook_pages", {
     .notNull()
     .references(() => ebooks.ebook_id, { onDelete: "cascade" }),
   page_number: integer("page_number").notNull(),
+  position: integer("position").notNull(),
   title: varchar("title", { length: 255 }),
   content_type: pageContentTypeEnum("content_type").notNull().default("text"),
   content: jsonb("content").notNull(), // 다양한 콘텐츠 타입을 지원하기 위한 JSON 필드

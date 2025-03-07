@@ -160,19 +160,51 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                 const mixedContent = page.content as any;
                 return (
                     <div className="my-4">
-                        {mixedContent?.blocks?.map((block: any, index: number) => (
-                            <div key={index} className="mb-4">
-                                <PageRenderer
-                                    page={{
-                                        ...page,
-                                        content_type: block.type as PageContentType,
-                                        content: block.content,
-                                    }}
-                                    highlights={highlights}
-                                    onTextSelect={onTextSelect}
-                                />
-                            </div>
-                        ))}
+                        {mixedContent?.blocks?.map((block: any, index: number) => {
+                            // 각 블록 타입에 맞는 content 구조 생성
+                            let blockContent;
+
+                            switch (block.type) {
+                                case "text":
+                                    blockContent = { content: block.content };
+                                    break;
+                                case "image":
+                                    blockContent = block;
+                                    break;
+                                case "code":
+                                    blockContent = {
+                                        language: block.language,
+                                        code: block.code,
+                                        caption: block.caption
+                                    };
+                                    break;
+                                case "video":
+                                case "audio":
+                                    blockContent = {
+                                        url: block.url,
+                                        caption: block.caption,
+                                        controls: block.controls,
+                                        autoplay: block.autoplay
+                                    };
+                                    break;
+                                default:
+                                    blockContent = block;
+                            }
+
+                            return (
+                                <div key={index} className="mb-4">
+                                    <PageRenderer
+                                        page={{
+                                            ...page,
+                                            content_type: block.type as PageContentType,
+                                            content: blockContent,
+                                        }}
+                                        highlights={highlights}
+                                        onTextSelect={onTextSelect}
+                                    />
+                                </div>
+                            );
+                        })}
                     </div>
                 );
             default:

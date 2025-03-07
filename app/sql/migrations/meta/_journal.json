@@ -22,6 +22,13 @@
       "when": 1741337337374,
       "tag": "0002_fuzzy_kree",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1741340888817,
+      "tag": "0003_spooky_nehzno",
+      "breakpoints": true
     }
   ]
 }

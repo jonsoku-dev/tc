@@ -8,6 +8,7 @@ import { PageTransition } from "./page-transition";
 
 interface EbookPageViewerProps {
     ebook: Ebook;
+    tableOfContents: string[];
     currentPage: number;
     highlights: Highlight[];
     bookmarks: BookmarkItem[];
@@ -66,6 +67,7 @@ type SidebarHighlight = {
 
 export function EbookPageViewer({
     ebook,
+    tableOfContents,
     currentPage,
     highlights = [],
     bookmarks = [],
@@ -95,7 +97,7 @@ export function EbookPageViewer({
     const currentPageData = ebook.pages.find(page => page.page_number === currentPage) || ebook.pages[0];
 
     // 목차 아이템 생성
-    const tocItems: SidebarTocItem[] = ebook.table_of_contents.map((title, index) => ({
+    const tocItems: SidebarTocItem[] = tableOfContents.map((title, index) => ({
         id: `toc-${index}`,
         title,
         level: 1,

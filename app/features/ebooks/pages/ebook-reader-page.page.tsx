@@ -44,7 +44,7 @@ export async function loader({ params }: Route.LoaderArgs) {
             .from('ebook_pages')
             .select('*')
             .eq('ebook_id', ebookId)
-            .order('page_number', { ascending: true });
+            .order('position', { ascending: true });
 
         if (pagesError) {
             console.error("전자책 페이지 조회 오류:", pagesError);
@@ -52,24 +52,7 @@ export async function loader({ params }: Route.LoaderArgs) {
         }
 
         // 페이지 제목을 기반으로 목차 생성
-        // 저장된 목차가 있으면 사용하고, 없으면 페이지 제목으로 생성
-        let tableOfContents = ebook.table_of_contents;
-
-        // 목차가 없거나 페이지 수와 목차 항목 수가 일치하지 않으면 페이지 제목으로 목차 생성
-        if (!tableOfContents || !Array.isArray(tableOfContents) || tableOfContents.length !== pages?.length) {
-            tableOfContents = pages?.map(page => page.title || `${page.page_number}페이지`) || [];
-
-            // 목차 업데이트 (선택적)
-            try {
-                await supabase
-                    .from('ebooks')
-                    .update({ table_of_contents: tableOfContents })
-                    .eq('ebook_id', ebookId);
-            } catch (updateError) {
-                console.error("목차 업데이트 오류:", updateError);
-                // 업데이트 실패해도 계속 진행
-            }
-        }
+        const tableOfContents = pages?.map(page => page.title || `${page.page_number}페이지`) || [];
 
         // 하이라이트 가져오기
         const { data: highlights, error: highlightsError } = await supabase
@@ -109,10 +92,10 @@ export async function loader({ params }: Route.LoaderArgs) {
         return {
             ebook: {
                 ...ebook,
-                table_of_contents: tableOfContents, // 생성된 목차 사용
                 pages: pages || [],
                 page_count: pages?.length || 0
             },
+            tableOfContents, // 생성된 목차 별도로 전달
             highlights: highlights?.map(h => ({
                 id: h.highlight_id,
                 text: h.text || "", // null 처리
@@ -362,7 +345,7 @@ export function meta({ data }: Route.MetaArgs) {
 
 // 메인 컴포넌트 래퍼
 export default function EbookReaderPage({ loaderData, actionData }: Route.ComponentProps) {
-    // loaderData가 없거나 ebook이 없는 경우 처리
+    // 로더 데이터가 없거나 ebook이 없는 경우 처리
     if (!loaderData || !loaderData.ebook) {
         return (
             <div className="flex items-center justify-center h-screen">
@@ -371,7 +354,7 @@ export default function EbookReaderPage({ loaderData, actionData }: Route.Compon
         );
     }
 
-    const { ebook, highlights: initialHighlights, bookmarks: initialBookmarks, currentPage } = loaderData;
+    const { ebook, tableOfContents, highlights: initialHighlights, bookmarks: initialBookmarks, currentPage } = loaderData;
     const { supabase } = useSupabase();
 
     // 액션 데이터 처리
@@ -392,14 +375,14 @@ export default function EbookReaderPage({ loaderData, actionData }: Route.Compon
             maxPage={ebook.page_count || 0}
         >
             <EbookUIProvider>
-                <EbookReaderContent ebook={ebook} />
+                <EbookReaderContent ebook={ebook} tableOfContents={tableOfContents} />
             </EbookUIProvider>
         </EbookReaderProvider>
     );
 }
 
 // 실제 컨텐츠 컴포넌트 - Context를 사용
-function EbookReaderContent({ ebook }: { ebook: any }) {
+function EbookReaderContent({ ebook, tableOfContents }: { ebook: any, tableOfContents: string[] }) {
     const navigate = useNavigate();
     const { currentPage, highlights, bookmarks, activeItemId } = useEbookReader();
     const handlers = useEbookReaderHandlers();
@@ -609,6 +592,7 @@ function EbookReaderContent({ ebook }: { ebook: any }) {
     return (
         <EbookPageViewer
             ebook={ebook}
+            tableOfContents={tableOfContents}
             currentPage={currentPage}
             highlights={highlights}
             bookmarks={bookmarks}
