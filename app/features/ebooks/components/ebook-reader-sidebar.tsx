@@ -37,14 +37,14 @@ interface EbookReaderSidebarProps {
     tocItems: TocItem[];
     bookmarks: BookmarkItem[];
     highlights: Highlight[];
+    currentPage: number;
     activeItemId: string | null;
-    onClose: () => void;
     onTocItemClick: (item: TocItem) => void;
     onBookmarkClick: (bookmark: BookmarkItem) => void;
-    onBookmarkDelete: (bookmarkId: string) => void;
+    onDeleteBookmark: (bookmarkId: string) => void;
     onHighlightClick: (highlight: Highlight) => void;
-    onHighlightDelete: (highlightId: string) => void;
-    onHighlightNoteUpdate: (highlightId: string, note: string) => void;
+    onDeleteHighlight: (highlightId: string) => void;
+    onUpdateHighlightNote: (highlightId: string, note: string) => void;
     className?: string;
 }
 
@@ -53,14 +53,14 @@ export function EbookReaderSidebar({
     tocItems,
     bookmarks,
     highlights,
+    currentPage,
     activeItemId,
-    onClose,
     onTocItemClick,
     onBookmarkClick,
-    onBookmarkDelete,
+    onDeleteBookmark,
     onHighlightClick,
-    onHighlightDelete,
-    onHighlightNoteUpdate,
+    onDeleteHighlight,
+    onUpdateHighlightNote,
     className = "",
 }: EbookReaderSidebarProps) {
     return (
@@ -68,13 +68,6 @@ export function EbookReaderSidebar({
             <div className="p-4 border-b">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="font-bold truncate">{title}</h2>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={onClose}
-                    >
-                        <X className="h-4 w-4" />
-                    </Button>
                 </div>
                 <Tabs defaultValue="toc">
                     <TabsList className="grid grid-cols-3 w-full">
@@ -87,7 +80,11 @@ export function EbookReaderSidebar({
                             {tocItems.map((item) => (
                                 <div
                                     key={item.id}
-                                    className={`flex items-center py-2 px-3 rounded cursor-pointer ${activeItemId === item.id ? "bg-primary/10 text-primary" : "hover:bg-gray-100"
+                                    className={`flex items-center py-2 px-3 rounded cursor-pointer ${activeItemId === item.id
+                                        ? "bg-primary/10 text-primary"
+                                        : item.pageNumber === currentPage
+                                            ? "bg-gray-100"
+                                            : "hover:bg-gray-100"
                                         }`}
                                     style={{ paddingLeft: `${(item.level - 1) * 1}rem` }}
                                     onClick={() => onTocItemClick(item)}
@@ -105,7 +102,10 @@ export function EbookReaderSidebar({
                                 bookmarks.map((bookmark) => (
                                     <div
                                         key={bookmark.id}
-                                        className="flex items-center justify-between py-2 px-3 rounded hover:bg-gray-100 cursor-pointer"
+                                        className={`flex items-center justify-between py-2 px-3 rounded cursor-pointer ${bookmark.pageNumber === currentPage
+                                            ? "bg-gray-100"
+                                            : "hover:bg-gray-100"
+                                            }`}
                                         onClick={() => onBookmarkClick(bookmark)}
                                     >
                                         <div className="flex items-center">
@@ -122,7 +122,7 @@ export function EbookReaderSidebar({
                                             className="h-6 w-6 text-gray-500 hover:text-red-500"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                onBookmarkDelete(bookmark.id);
+                                                onDeleteBookmark(bookmark.id);
                                             }}
                                         >
                                             <X className="h-4 w-4" />
@@ -140,7 +140,10 @@ export function EbookReaderSidebar({
                                 highlights.map((highlight) => (
                                     <div
                                         key={highlight.id}
-                                        className="py-2 px-3 rounded hover:bg-gray-100 cursor-pointer"
+                                        className={`py-2 px-3 rounded cursor-pointer ${highlight.pageNumber === currentPage
+                                            ? "bg-gray-100"
+                                            : "hover:bg-gray-100"
+                                            }`}
                                         onClick={() => onHighlightClick(highlight)}
                                     >
                                         <div className="flex items-center justify-between mb-1">
@@ -159,7 +162,7 @@ export function EbookReaderSidebar({
                                                 className="h-6 w-6 text-gray-500 hover:text-red-500"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    onHighlightDelete(highlight.id);
+                                                    onDeleteHighlight(highlight.id);
                                                 }}
                                             >
                                                 <X className="h-4 w-4" />

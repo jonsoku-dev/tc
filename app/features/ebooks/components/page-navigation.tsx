@@ -1,9 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Button } from "~/common/components/ui/button";
 import { Input } from "~/common/components/ui/input";
 import { Slider } from "~/common/components/ui/slider";
 import { Popover, PopoverContent, PopoverTrigger } from "~/common/components/ui/popover";
+
+// debounce 유틸리티 함수
+function debounce<T extends (...args: any[]) => any>(
+    func: T,
+    wait: number
+): (...args: Parameters<T>) => void {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+
+    return function (...args: Parameters<T>) {
+        if (timeout) clearTimeout(timeout);
+        timeout = setTimeout(() => {
+            func(...args);
+        }, wait);
+    };
+}
 
 interface PageNavigationProps {
     currentPage: number;
@@ -22,12 +37,36 @@ export function PageNavigation({
     onJumpToPage,
     className = "",
 }: PageNavigationProps) {
+    // XState와 연동을 위해 로컬 상태 대신 currentPage를 직접 사용
     const [pageInputValue, setPageInputValue] = useState(currentPage.toString());
     const [sliderValue, setSliderValue] = useState(currentPage);
 
-    // 페이지 입력 처리
+    // currentPage가 변경될 때 pageInputValue와 sliderValue 업데이트
+    useEffect(() => {
+        setPageInputValue(currentPage.toString());
+        setSliderValue(currentPage);
+    }, [currentPage]);
+
+    // debounce된 페이지 점프 함수
+    const debouncedJumpToPage = useCallback(
+        debounce((pageNumber: number) => {
+            if (onJumpToPage) {
+                onJumpToPage(pageNumber);
+            }
+        }, 300), // 300ms 딜레이
+        [onJumpToPage]
+    );
+
+    // 페이지 입력 처리 - debounce 적용
     const handlePageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setPageInputValue(e.target.value);
+        const value = e.target.value;
+        setPageInputValue(value);
+
+        // 유효한 숫자인 경우 debounce 적용하여 XState 업데이트
+        const pageNumber = parseInt(value);
+        if (!isNaN(pageNumber) && pageNumber >= 1 && pageNumber <= totalPages) {
+            debouncedJumpToPage(pageNumber);
+        }
     };
 
     // 페이지 입력 제출 처리
@@ -35,19 +74,20 @@ export function PageNavigation({
         e.preventDefault();
         const pageNumber = parseInt(pageInputValue);
         if (!isNaN(pageNumber) && pageNumber >= 1 && pageNumber <= totalPages && onJumpToPage) {
-            onJumpToPage(pageNumber);
+            onJumpToPage(pageNumber); // 제출 시에는 즉시 업데이트
         }
     };
 
-    // 슬라이더 값 변경 처리
+    // 슬라이더 값 변경 처리 - 로컬 상태 업데이트 및 debounce 적용
     const handleSliderChange = (value: number[]) => {
         setSliderValue(value[0]);
+        debouncedJumpToPage(value[0]);
     };
 
-    // 슬라이더 값 변경 완료 처리
+    // 슬라이더 값 변경 완료 처리 - 즉시 업데이트
     const handleSliderChangeComplete = (value: number[]) => {
         if (onJumpToPage) {
-            onJumpToPage(value[0]);
+            onJumpToPage(value[0]); // 드래그 완료 시에는 즉시 업데이트
         }
     };
 
@@ -65,8 +105,11 @@ export function PageNavigation({
         }
     };
 
+    // 디버깅용 로그
+    console.log("PageNavigation 렌더링:", { currentPage, totalPages, sliderValue });
+
     return (
-        <div className={`flex items-center justify-between p-4 border-t ${className}`}>
+        <div className={`flex items-center justify-between p-4 border-t bg-white w-full z-10 ${className}`}>
             <div className="flex items-center space-x-2">
                 <Button
                     variant="ghost"
@@ -114,7 +157,7 @@ export function PageNavigation({
                                 <span>{totalPages}</span>
                             </div>
                             <Slider
-                                value={[sliderValue]}
+                                value={[sliderValue]} // 로컬 상태 사용
                                 min={1}
                                 max={totalPages}
                                 step={1}

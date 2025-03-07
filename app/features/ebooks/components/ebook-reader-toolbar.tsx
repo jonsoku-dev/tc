@@ -10,12 +10,13 @@ interface EbookReaderToolbarProps {
     totalPages: number;
     fontSize: number;
     lineHeight: number;
-    sidebarOpen: boolean;
-    onBackClick: () => void;
     onToggleSidebar: () => void;
     onAddBookmark: () => void;
-    onFontSizeChange: (size: number) => void;
-    onLineHeightChange: (height: number) => void;
+    onIncreaseFontSize: () => void;
+    onDecreaseFontSize: () => void;
+    onIncreaseLineHeight: () => void;
+    onDecreaseLineHeight: () => void;
+    onGoBack?: () => void;
     className?: string;
 }
 
@@ -25,34 +26,44 @@ export function EbookReaderToolbar({
     totalPages,
     fontSize,
     lineHeight,
-    sidebarOpen,
-    onBackClick,
     onToggleSidebar,
     onAddBookmark,
-    onFontSizeChange,
-    onLineHeightChange,
+    onIncreaseFontSize,
+    onDecreaseFontSize,
+    onIncreaseLineHeight,
+    onDecreaseLineHeight,
+    onGoBack,
     className = "",
 }: EbookReaderToolbarProps) {
+    // 디버깅용 로그
+    console.log("EbookReaderToolbar 렌더링:", { currentPage, fontSize, lineHeight });
+
     return (
-        <div className={`flex items-center justify-between p-4 border-b ${className}`}>
+        <div className={`flex items-center justify-between p-4 border-b bg-white w-full ${className}`}>
             <div className="flex items-center">
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={onGoBack}
+                                className="mr-2"
+                            >
+                                <ArrowLeft className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>뒤로가기</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
                 <Button
                     variant="ghost"
                     size="icon"
-                    onClick={onBackClick}
+                    onClick={onToggleSidebar}
                     className="mr-2"
                 >
-                    <ArrowLeft className="h-4 w-4" />
+                    <List className="h-4 w-4" />
                 </Button>
-                {!sidebarOpen && (
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={onToggleSidebar}
-                    >
-                        <List className="h-4 w-4" />
-                    </Button>
-                )}
             </div>
             <div className="text-sm text-gray-500">
                 {currentPage} / {totalPages} 페이지
@@ -91,7 +102,7 @@ export function EbookReaderToolbar({
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
-                                                    onClick={() => onFontSizeChange(Math.max(12, fontSize - 1))}
+                                                    onClick={onDecreaseFontSize}
                                                 >
                                                     -
                                                 </Button>
@@ -99,7 +110,7 @@ export function EbookReaderToolbar({
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
-                                                    onClick={() => onFontSizeChange(Math.min(24, fontSize + 1))}
+                                                    onClick={onIncreaseFontSize}
                                                 >
                                                     +
                                                 </Button>
@@ -111,7 +122,7 @@ export function EbookReaderToolbar({
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
-                                                    onClick={() => onLineHeightChange(Math.max(1.2, lineHeight - 0.1))}
+                                                    onClick={onDecreaseLineHeight}
                                                 >
                                                     -
                                                 </Button>
@@ -119,7 +130,7 @@ export function EbookReaderToolbar({
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
-                                                    onClick={() => onLineHeightChange(Math.min(2.5, lineHeight + 0.1))}
+                                                    onClick={onIncreaseLineHeight}
                                                 >
                                                     +
                                                 </Button>

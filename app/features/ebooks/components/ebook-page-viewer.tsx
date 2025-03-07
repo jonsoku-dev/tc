@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import type { Ebook, EbookPage, Highlight, BookmarkItem } from "./types";
 import { PageRenderer } from "./page-renderer";
 import { PageNavigation } from "./page-navigation";
@@ -8,16 +8,32 @@ import { PageTransition } from "./page-transition";
 
 interface EbookPageViewerProps {
     ebook: Ebook;
-    initialPage?: number;
-    highlights?: Highlight[];
-    bookmarks?: BookmarkItem[];
-    onAddHighlight?: (highlight: Omit<Highlight, "id" | "createdAt">) => void;
-    onAddBookmark?: (bookmark: Omit<BookmarkItem, "id" | "createdAt">) => void;
-    onDeleteHighlight?: (highlightId: string) => void;
-    onDeleteBookmark?: (bookmarkId: string) => void;
-    onUpdateHighlightNote?: (highlightId: string, note: string) => void;
-    onPageChange?: (pageNumber: number) => void;
+    currentPage: number;
+    highlights: Highlight[];
+    bookmarks: BookmarkItem[];
+    onAddHighlight: (highlight: Omit<Highlight, "id" | "createdAt">) => void;
+    onAddBookmark: (bookmark: Omit<BookmarkItem, "id" | "createdAt">) => void;
+    onDeleteHighlight: (highlightId: string) => void;
+    onDeleteBookmark: (bookmarkId: string) => void;
+    onUpdateHighlightNote: (highlightId: string, note: string) => void;
+    onPageChange: (pageNumber: number) => void;
+    onNextPage: () => void;
+    onPrevPage: () => void;
+    onJumpToPage: (pageNumber: number) => void;
+    onSetActiveItem: (itemId: string | null) => void;
+    onGoBack?: () => void;
     className?: string;
+    // UI 상태 (옵션)
+    sidebarOpen?: boolean;
+    fontSize?: number;
+    lineHeight?: number;
+    activeItemId?: string | null;
+    // UI 이벤트 핸들러 (옵션)
+    onToggleSidebar?: () => void;
+    onIncreaseFontSize?: () => void;
+    onDecreaseFontSize?: () => void;
+    onIncreaseLineHeight?: () => void;
+    onDecreaseLineHeight?: () => void;
 }
 
 // 사이드바 컴포넌트에 전달할 props 타입 정의
@@ -50,7 +66,7 @@ type SidebarHighlight = {
 
 export function EbookPageViewer({
     ebook,
-    initialPage = 1,
+    currentPage,
     highlights = [],
     bookmarks = [],
     onAddHighlight,
@@ -59,14 +75,22 @@ export function EbookPageViewer({
     onDeleteBookmark,
     onUpdateHighlightNote,
     onPageChange,
+    onNextPage,
+    onPrevPage,
+    onJumpToPage,
+    onSetActiveItem,
+    onGoBack,
     className = "",
+    sidebarOpen = true,
+    fontSize = 16,
+    lineHeight = 1.6,
+    activeItemId = null,
+    onToggleSidebar = () => { },
+    onIncreaseFontSize = () => { },
+    onDecreaseFontSize = () => { },
+    onIncreaseLineHeight = () => { },
+    onDecreaseLineHeight = () => { },
 }: EbookPageViewerProps) {
-    const [currentPage, setCurrentPage] = useState(initialPage);
-    const [sidebarOpen, setSidebarOpen] = useState(true);
-    const [fontSize, setFontSize] = useState(16);
-    const [lineHeight, setLineHeight] = useState(1.6);
-    const [activeItemId, setActiveItemId] = useState<string | null>(null);
-
     // 현재 페이지 데이터
     const currentPageData = ebook.pages.find(page => page.page_number === currentPage) || ebook.pages[0];
 
@@ -78,13 +102,6 @@ export function EbookPageViewer({
         position: 0,
         pageNumber: index + 1, // 예시: 목차 항목과 페이지 번호 매핑
     }));
-
-    // 페이지 변경 시 콜백 호출
-    useEffect(() => {
-        if (onPageChange) {
-            onPageChange(currentPage);
-        }
-    }, [currentPage, onPageChange]);
 
     // 텍스트 선택 처리
     const handleTextSelect = ({ text, startOffset, endOffset, pageNumber }: {
@@ -121,38 +138,18 @@ export function EbookPageViewer({
 
     // 목차 아이템 클릭 처리
     const handleTocItemClick = (item: SidebarTocItem) => {
-        setCurrentPage(item.pageNumber);
-        setActiveItemId(item.id);
+        onJumpToPage(item.pageNumber);
+        onSetActiveItem(item.id);
     };
 
     // 북마크 클릭 처리
     const handleBookmarkClick = (bookmark: SidebarBookmarkItem) => {
-        setCurrentPage(bookmark.pageNumber);
+        onJumpToPage(bookmark.pageNumber);
     };
 
     // 하이라이트 클릭 처리
     const handleHighlightClick = (highlight: SidebarHighlight) => {
-        setCurrentPage(highlight.pageNumber);
-    };
-
-    // 페이지 이동
-    const goToNextPage = () => {
-        if (currentPage < ebook.page_count) {
-            setCurrentPage(currentPage + 1);
-        }
-    };
-
-    const goToPrevPage = () => {
-        if (currentPage > 1) {
-            setCurrentPage(currentPage - 1);
-        }
-    };
-
-    // 특정 페이지로 점프
-    const jumpToPage = (pageNumber: number) => {
-        if (pageNumber >= 1 && pageNumber <= ebook.page_count) {
-            setCurrentPage(pageNumber);
-        }
+        onJumpToPage(highlight.pageNumber);
     };
 
     // 키보드 단축키 처리
@@ -160,26 +157,26 @@ export function EbookPageViewer({
         const handleKeyDown = (e: KeyboardEvent) => {
             // 왼쪽 화살표: 이전 페이지
             if (e.key === 'ArrowLeft') {
-                goToPrevPage();
+                onPrevPage();
             }
             // 오른쪽 화살표: 다음 페이지
             else if (e.key === 'ArrowRight') {
-                goToNextPage();
+                onNextPage();
             }
             // Home 키: 첫 페이지
             else if (e.key === 'Home') {
-                jumpToPage(1);
+                onJumpToPage(1);
             }
             // End 키: 마지막 페이지
             else if (e.key === 'End') {
-                jumpToPage(ebook.page_count);
+                onJumpToPage(ebook.page_count);
             }
             // 숫자 키: 페이지 점프 (Ctrl + 숫자)
             else if (e.ctrlKey && !isNaN(parseInt(e.key)) && parseInt(e.key) >= 0 && parseInt(e.key) <= 9) {
                 const pageNumber = parseInt(e.key) === 0 ? 10 : parseInt(e.key);
                 // 전체 페이지의 10%, 20%, ... 90%, 100%로 이동
                 const targetPage = Math.ceil((pageNumber / 10) * ebook.page_count);
-                jumpToPage(targetPage);
+                onJumpToPage(targetPage);
             }
         };
 
@@ -187,7 +184,7 @@ export function EbookPageViewer({
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [currentPage, ebook.page_count]);
+    }, [ebook.page_count, onNextPage, onPrevPage, onJumpToPage]);
 
     // 제스처 처리 (스와이프)
     useEffect(() => {
@@ -202,11 +199,11 @@ export function EbookPageViewer({
 
             // 왼쪽으로 스와이프: 다음 페이지
             if (diffX < -50) {
-                goToNextPage();
+                onNextPage();
             }
             // 오른쪽으로 스와이프: 이전 페이지
             else if (diffX > 50) {
-                goToPrevPage();
+                onPrevPage();
             }
         };
 
@@ -217,28 +214,7 @@ export function EbookPageViewer({
             document.removeEventListener('touchstart', handleTouchStart);
             document.removeEventListener('touchend', handleTouchEnd);
         };
-    }, [currentPage, ebook.page_count]);
-
-    // 북마크 삭제 처리 함수
-    const handleDeleteBookmark = (bookmarkId: string) => {
-        if (onDeleteBookmark) {
-            onDeleteBookmark(bookmarkId);
-        }
-    };
-
-    // 하이라이트 삭제 처리 함수
-    const handleDeleteHighlight = (highlightId: string) => {
-        if (onDeleteHighlight) {
-            onDeleteHighlight(highlightId);
-        }
-    };
-
-    // 하이라이트 노트 업데이트 처리 함수
-    const handleUpdateHighlightNote = (highlightId: string, note: string) => {
-        if (onUpdateHighlightNote) {
-            onUpdateHighlightNote(highlightId, note);
-        }
-    };
+    }, [onNextPage, onPrevPage]);
 
     return (
         <div className={`flex h-screen overflow-hidden bg-white ${className}`}>
@@ -249,42 +225,43 @@ export function EbookPageViewer({
                     tocItems={tocItems}
                     bookmarks={bookmarks}
                     highlights={highlights}
+                    currentPage={currentPage}
                     activeItemId={activeItemId}
-                    onClose={() => setSidebarOpen(false)}
                     onTocItemClick={handleTocItemClick}
                     onBookmarkClick={handleBookmarkClick}
-                    onBookmarkDelete={handleDeleteBookmark}
+                    onDeleteBookmark={onDeleteBookmark}
                     onHighlightClick={handleHighlightClick}
-                    onHighlightDelete={handleDeleteHighlight}
-                    onHighlightNoteUpdate={handleUpdateHighlightNote}
-                    className="sticky top-0 h-screen overflow-y-auto"
+                    onDeleteHighlight={onDeleteHighlight}
+                    onUpdateHighlightNote={onUpdateHighlightNote}
                 />
             )}
 
             {/* 메인 콘텐츠 */}
             <div className="flex-1 flex flex-col h-full overflow-hidden">
                 {/* 상단 툴바 */}
-                <EbookReaderToolbar
-                    title={ebook.title}
-                    currentPage={currentPage}
-                    totalPages={ebook.page_count}
-                    fontSize={fontSize}
-                    lineHeight={lineHeight}
-                    sidebarOpen={sidebarOpen}
-                    onBackClick={() => window.history.back()}
-                    onToggleSidebar={() => setSidebarOpen(true)}
-                    onAddBookmark={addBookmark}
-                    onFontSizeChange={setFontSize}
-                    onLineHeightChange={setLineHeight}
-                    className="sticky top-0 z-10 bg-white"
-                />
+                <div className="flex-shrink-0 sticky top-0 left-0 right-0 z-10">
+                    <EbookReaderToolbar
+                        title={ebook.title}
+                        currentPage={currentPage}
+                        totalPages={ebook.page_count}
+                        fontSize={fontSize}
+                        lineHeight={lineHeight}
+                        onToggleSidebar={onToggleSidebar}
+                        onAddBookmark={addBookmark}
+                        onIncreaseFontSize={onIncreaseFontSize}
+                        onDecreaseFontSize={onDecreaseFontSize}
+                        onIncreaseLineHeight={onIncreaseLineHeight}
+                        onDecreaseLineHeight={onDecreaseLineHeight}
+                        onGoBack={onGoBack}
+                    />
+                </div>
 
                 {/* 페이지 콘텐츠 */}
-                <div
-                    className="flex-1 flex items-center justify-center p-8 overflow-hidden"
-                    style={{ fontSize: `${fontSize}px`, lineHeight: lineHeight }}
-                >
-                    <div className="max-w-3xl w-full mx-auto bg-white shadow-lg rounded-lg p-8 h-[calc(100vh-200px)] overflow-hidden">
+                <div className="flex-1 overflow-auto p-4">
+                    <div
+                        className="max-w-3xl w-full mx-auto bg-white shadow-lg rounded-lg p-8 min-h-[300px] overflow-auto"
+                        style={{ fontSize: `${fontSize}px`, lineHeight: lineHeight }}
+                    >
                         <PageTransition
                             pages={ebook.pages}
                             currentPage={currentPage}
@@ -295,14 +272,16 @@ export function EbookPageViewer({
                 </div>
 
                 {/* 하단 네비게이션 */}
-                <PageNavigation
-                    currentPage={currentPage}
-                    totalPages={ebook.page_count}
-                    onPrevPage={goToPrevPage}
-                    onNextPage={goToNextPage}
-                    onJumpToPage={jumpToPage}
-                    className="sticky bottom-0 z-10 bg-white"
-                />
+                <div className="flex-shrink-0 w-full fixed bottom-0 left-0 right-0">
+                    <PageNavigation
+                        currentPage={currentPage}
+                        totalPages={ebook.page_count}
+                        onPrevPage={onPrevPage}
+                        onNextPage={onNextPage}
+                        onJumpToPage={onJumpToPage}
+                        className="shadow-md"
+                    />
+                </div>
             </div>
         </div>
     );

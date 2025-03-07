@@ -1,8 +1,9 @@
-import { useState } from "react";
 import { useNavigate } from "react-router";
 import type { Route } from "./+types/ebook-reader-page.page";
 import { EbookPageViewer } from "../components/ebook-page-viewer";
 import type { Highlight, BookmarkItem, PageContentType } from "../components/types";
+import { EbookReaderProvider, useEbookReader, useEbookReaderHandlers } from "../machines/ebook-reader.context";
+import { EbookUIProvider, useEbookUI } from "../machines/ebook-ui.context";
 
 // 로더 함수
 export function loader({ params }: Route.LoaderArgs) {
@@ -196,69 +197,74 @@ export function meta({ data }: Route.MetaArgs) {
     ];
 }
 
-// 메인 컴포넌트
+// 메인 컴포넌트 래퍼
 export default function EbookReaderPage({ loaderData }: Route.ComponentProps) {
-    const navigate = useNavigate();
     const { ebook, highlights: initialHighlights, bookmarks: initialBookmarks, currentPage } = loaderData;
 
-    const [highlights, setHighlights] = useState<Highlight[]>(initialHighlights);
-    const [bookmarks, setBookmarks] = useState<BookmarkItem[]>(initialBookmarks);
+    return (
+        <EbookReaderProvider
+            initialPage={currentPage}
+            initialHighlights={initialHighlights}
+            initialBookmarks={initialBookmarks}
+            maxPage={ebook.page_count}
+        >
+            <EbookUIProvider>
+                <EbookReaderContent ebook={ebook} />
+            </EbookUIProvider>
+        </EbookReaderProvider>
+    );
+}
 
-    // 하이라이트 추가
-    const handleAddHighlight = (highlight: Omit<Highlight, "id" | "createdAt">) => {
-        const newHighlight: Highlight = {
-            ...highlight,
-            id: `highlight-${Date.now()}`,
-            createdAt: new Date(),
-        };
-        setHighlights([...highlights, newHighlight]);
+// 실제 컨텐츠 컴포넌트 - Context를 사용
+function EbookReaderContent({ ebook }: { ebook: any }) {
+    const navigate = useNavigate();
+    const { currentPage, highlights, bookmarks, activeItemId } = useEbookReader();
+    const handlers = useEbookReaderHandlers();
+    const {
+        sidebarOpen,
+        fontSize,
+        lineHeight,
+        toggleSidebar,
+        increaseFontSize,
+        decreaseFontSize,
+        increaseLineHeight,
+        decreaseLineHeight
+    } = useEbookUI();
+
+    // 뒤로가기 핸들러
+    const handleGoBack = () => {
+        navigate(-1);
     };
 
-    // 북마크 추가
-    const handleAddBookmark = (bookmark: Omit<BookmarkItem, "id" | "createdAt">) => {
-        const newBookmark: BookmarkItem = {
-            ...bookmark,
-            id: `bookmark-${Date.now()}`,
-            createdAt: new Date(),
-        };
-        setBookmarks([...bookmarks, newBookmark]);
-    };
-
-    // 하이라이트 삭제
-    const handleDeleteHighlight = (highlightId: string) => {
-        setHighlights(highlights.filter(h => h.id !== highlightId));
-    };
-
-    // 북마크 삭제
-    const handleDeleteBookmark = (bookmarkId: string) => {
-        setBookmarks(bookmarks.filter(b => b.id !== bookmarkId));
-    };
-
-    // 하이라이트 노트 업데이트
-    const handleUpdateHighlightNote = (highlightId: string, note: string) => {
-        setHighlights(highlights.map(h =>
-            h.id === highlightId ? { ...h, note } : h
-        ));
-    };
-
-    // 페이지 변경 처리
-    const handlePageChange = (pageNumber: number) => {
-        console.log(`페이지 변경: ${pageNumber}`);
-        // 여기서 필요한 경우 서버에 읽기 진행 상태를 업데이트할 수 있습니다.
-    };
+    // 디버깅용 로그
+    console.log("EbookReaderContent 렌더링:", { currentPage, highlights, bookmarks });
 
     return (
         <EbookPageViewer
             ebook={ebook}
-            initialPage={currentPage}
+            currentPage={currentPage}
             highlights={highlights}
             bookmarks={bookmarks}
-            onAddHighlight={handleAddHighlight}
-            onAddBookmark={handleAddBookmark}
-            onDeleteHighlight={handleDeleteHighlight}
-            onDeleteBookmark={handleDeleteBookmark}
-            onUpdateHighlightNote={handleUpdateHighlightNote}
-            onPageChange={handlePageChange}
+            onAddHighlight={handlers.handleAddHighlight}
+            onAddBookmark={handlers.handleAddBookmark}
+            onDeleteHighlight={handlers.handleDeleteHighlight}
+            onDeleteBookmark={handlers.handleDeleteBookmark}
+            onUpdateHighlightNote={handlers.handleUpdateHighlightNote}
+            onPageChange={handlers.handlePageChange}
+            onNextPage={handlers.handleNextPage}
+            onPrevPage={handlers.handlePrevPage}
+            onJumpToPage={handlers.handleJumpToPage}
+            onSetActiveItem={handlers.handleSetActiveItem}
+            onGoBack={handleGoBack}
+            sidebarOpen={sidebarOpen}
+            fontSize={fontSize}
+            lineHeight={lineHeight}
+            activeItemId={activeItemId}
+            onToggleSidebar={toggleSidebar}
+            onIncreaseFontSize={increaseFontSize}
+            onDecreaseFontSize={decreaseFontSize}
+            onIncreaseLineHeight={increaseLineHeight}
+            onDecreaseLineHeight={decreaseLineHeight}
         />
     );
 } 
