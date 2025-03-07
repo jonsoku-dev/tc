@@ -1,11 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
-import { EbookReaderSidebar } from "../components/ebook-reader-sidebar";
-import { EbookReaderToolbar } from "../components/ebook-reader-toolbar";
-import { MarkdownRenderer } from "../components/markdown-renderer";
-import { PageNavigation } from "../components/page-navigation";
-import type { BookmarkItem, Highlight, TocItem } from "../components/types";
 import type { Route } from "./+types/ebook-reader-page.page";
+import { EbookPageViewer } from "../components/ebook-page-viewer";
+import type { Highlight, BookmarkItem, PageContentType } from "../components/types";
 
 // 로더 함수
 export function loader({ params }: Route.LoaderArgs) {
@@ -23,7 +20,17 @@ export function loader({ params }: Route.LoaderArgs) {
                 "4장: 링크와 이미지",
                 "5장: 확장 문법",
             ],
-            content: `
+            page_count: 5,
+            // 페이지 기반 데이터 구조로 변경
+            pages: [
+                {
+                    page_id: "page-1",
+                    ebook_id: params.ebookId,
+                    page_number: 1,
+                    title: "1장: 마크다운 기초",
+                    content_type: "text" as PageContentType,
+                    content: {
+                        content: `
 # 마크다운으로 배우는 프로그래밍
 
 ## 1장: 마크다운 기초
@@ -35,7 +42,19 @@ export function loader({ params }: Route.LoaderArgs) {
 - **굵게**: \`**텍스트**\`
 - *기울임*: \`*텍스트*\`
 - ~~취소선~~: \`~~텍스트~~\`
-
+                        `
+                    },
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                },
+                {
+                    page_id: "page-2",
+                    ebook_id: params.ebookId,
+                    page_number: 2,
+                    title: "2장: 코드 블록 사용하기",
+                    content_type: "text" as PageContentType,
+                    content: {
+                        content: `
 ## 2장: 코드 블록 사용하기
 
 코드 블록은 프로그래밍 코드를 표현하는 데 매우 유용합니다.
@@ -56,28 +75,71 @@ function greet(user: User) {
   return \`Hello, \${user.name}!\`;
 }
 \`\`\`
-
-## 3장: 표 만들기
-
-표는 데이터를 정리하여 보여주는 데 효과적입니다.
-
-| 이름 | 설명 |
-|------|------|
-| 마크다운 | 텍스트 기반 마크업 언어 |
-| HTML | 웹 페이지 구조화 언어 |
-| CSS | 웹 페이지 스타일링 언어 |
-| JavaScript | 웹 페이지 동적 기능 언어 |
-
+                        `
+                    },
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                },
+                {
+                    page_id: "page-3",
+                    ebook_id: params.ebookId,
+                    page_number: 3,
+                    title: "3장: 표 만들기",
+                    content_type: "table" as PageContentType,
+                    content: {
+                        caption: "프로그래밍 언어 비교",
+                        headers: ["이름", "설명", "용도"],
+                        rows: [
+                            ["마크다운", "텍스트 기반 마크업 언어", "문서 작성"],
+                            ["HTML", "웹 페이지 구조화 언어", "웹 페이지 구조"],
+                            ["CSS", "웹 페이지 스타일링 언어", "웹 페이지 디자인"],
+                            ["JavaScript", "웹 페이지 동적 기능 언어", "웹 페이지 기능"]
+                        ]
+                    },
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                },
+                {
+                    page_id: "page-4",
+                    ebook_id: params.ebookId,
+                    page_number: 4,
+                    title: "4장: 링크와 이미지",
+                    content_type: "mixed" as PageContentType,
+                    content: {
+                        blocks: [
+                            {
+                                type: "text" as PageContentType,
+                                content: {
+                                    content: `
 ## 4장: 링크와 이미지
 
 ### 링크
 
 [마크다운 가이드](https://www.markdownguide.org/)
-
-### 이미지
-
-![마크다운 로고](https://markdown-here.com/img/icon256.png)
-
+                                    `
+                                }
+                            },
+                            {
+                                type: "image" as PageContentType,
+                                content: {
+                                    url: "https://markdown-here.com/img/icon256.png",
+                                    alt: "마크다운 로고",
+                                    caption: "마크다운 로고 이미지"
+                                }
+                            }
+                        ]
+                    },
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                },
+                {
+                    page_id: "page-5",
+                    ebook_id: params.ebookId,
+                    page_number: 5,
+                    title: "5장: 확장 문법",
+                    content_type: "text" as PageContentType,
+                    content: {
+                        content: `
 ## 5장: 확장 문법
 
 마크다운의 확장 문법에는 다양한 기능이 있습니다.
@@ -95,7 +157,12 @@ function greet(user: User) {
 
 HTML
 : 웹 페이지를 구조화하는 언어
-      `,
+                        `
+                    },
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                }
+            ],
         },
         highlights: [
             {
@@ -106,17 +173,19 @@ HTML
                 color: "#FFEB3B",
                 note: "마크다운의 핵심 개념",
                 createdAt: new Date("2023-06-22T11:20:00Z"),
+                pageNumber: 1,
             },
         ],
         bookmarks: [
             {
                 id: "1",
-                position: 500,
+                position: 0,
                 title: "코드 블록 부분",
                 createdAt: new Date("2023-06-20T10:15:00Z"),
+                pageNumber: 2,
             },
         ],
-        currentPosition: 0,
+        currentPage: 1,
     };
 }
 
@@ -130,227 +199,66 @@ export function meta({ data }: Route.MetaArgs) {
 // 메인 컴포넌트
 export default function EbookReaderPage({ loaderData }: Route.ComponentProps) {
     const navigate = useNavigate();
-    const { ebook, highlights: initialHighlights, bookmarks: initialBookmarks, currentPosition } = loaderData;
+    const { ebook, highlights: initialHighlights, bookmarks: initialBookmarks, currentPage } = loaderData;
 
-    // 상태 관리
-    const [sidebarOpen, setSidebarOpen] = useState(true);
     const [highlights, setHighlights] = useState<Highlight[]>(initialHighlights);
     const [bookmarks, setBookmarks] = useState<BookmarkItem[]>(initialBookmarks);
-    const [activeItemId, setActiveItemId] = useState<string | null>(null);
-    const [fontSize, setFontSize] = useState(16);
-    const [lineHeight, setLineHeight] = useState(1.6);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(10); // 예시 값
 
-    const contentRef = useRef<HTMLDivElement>(null);
-
-    // 목차 아이템 생성
-    const tocItems: TocItem[] = ebook.table_of_contents.map((title: string, index: number) => ({
-        id: `toc-${index}`,
-        title,
-        level: 1,
-        position: index * 500, // 예시 값, 실제로는 콘텐츠 내 위치 계산 필요
-    }));
-
-    // 스크롤 이벤트 처리
-    useEffect(() => {
-        const handleScroll = () => {
-            if (!contentRef.current) return;
-
-            const scrollPosition = contentRef.current.scrollTop;
-
-            // 현재 스크롤 위치에 따라 활성 목차 아이템 업데이트
-            const activeItem = tocItems.reduce((prev, current) => {
-                return (Math.abs(current.position - scrollPosition) < Math.abs(prev.position - scrollPosition))
-                    ? current
-                    : prev;
-            });
-
-            setActiveItemId(activeItem.id);
-
-            // 현재 페이지 계산 (예시)
-            const scrollPercentage = scrollPosition / (contentRef.current.scrollHeight - contentRef.current.clientHeight);
-            const currentPage = Math.max(1, Math.ceil(scrollPercentage * totalPages));
-            setCurrentPage(currentPage);
-        };
-
-        const contentElement = contentRef.current;
-        if (contentElement) {
-            contentElement.addEventListener("scroll", handleScroll);
-            return () => contentElement.removeEventListener("scroll", handleScroll);
-        }
-    }, [tocItems, totalPages]);
-
-    // 텍스트 선택 처리
-    const handleTextSelect = ({ text, startOffset, endOffset }: { text: string; startOffset: number; endOffset: number }) => {
-        if (!text) return;
-
+    // 하이라이트 추가
+    const handleAddHighlight = (highlight: Omit<Highlight, "id" | "createdAt">) => {
         const newHighlight: Highlight = {
+            ...highlight,
             id: `highlight-${Date.now()}`,
-            text,
-            startOffset,
-            endOffset,
-            color: "#FFEB3B", // 기본 색상
             createdAt: new Date(),
         };
-
         setHighlights([...highlights, newHighlight]);
     };
 
     // 북마크 추가
-    const addBookmark = () => {
-        if (!contentRef.current) return;
-
-        const scrollPosition = contentRef.current.scrollTop;
-
-        // 현재 위치에 가장 가까운 목차 아이템 찾기
-        const nearestTocItem = tocItems.reduce((prev, current) => {
-            return (Math.abs(current.position - scrollPosition) < Math.abs(prev.position - scrollPosition))
-                ? current
-                : prev;
-        });
-
+    const handleAddBookmark = (bookmark: Omit<BookmarkItem, "id" | "createdAt">) => {
         const newBookmark: BookmarkItem = {
+            ...bookmark,
             id: `bookmark-${Date.now()}`,
-            position: scrollPosition,
-            title: nearestTocItem.title,
             createdAt: new Date(),
         };
-
         setBookmarks([...bookmarks, newBookmark]);
     };
 
-    // 목차 아이템 클릭 처리
-    const handleTocItemClick = (item: TocItem) => {
-        if (!contentRef.current) return;
-
-        contentRef.current.scrollTo({
-            top: item.position,
-            behavior: "smooth",
-        });
-
-        setActiveItemId(item.id);
-    };
-
-    // 북마크 클릭 처리
-    const handleBookmarkClick = (bookmark: BookmarkItem) => {
-        if (!contentRef.current) return;
-
-        contentRef.current.scrollTo({
-            top: bookmark.position,
-            behavior: "smooth",
-        });
-    };
-
-    // 하이라이트 클릭 처리
-    const handleHighlightClick = (highlight: Highlight) => {
-        if (!contentRef.current) return;
-
-        // 실제 구현에서는 하이라이트 위치로 스크롤
-        contentRef.current.scrollTo({
-            top: highlight.startOffset,
-            behavior: "smooth",
-        });
-    };
-
-    // 북마크 삭제
-    const handleBookmarkDelete = (bookmarkId: string) => {
-        setBookmarks(bookmarks.filter(b => b.id !== bookmarkId));
-    };
-
     // 하이라이트 삭제
-    const handleHighlightDelete = (highlightId: string) => {
+    const handleDeleteHighlight = (highlightId: string) => {
         setHighlights(highlights.filter(h => h.id !== highlightId));
     };
 
+    // 북마크 삭제
+    const handleDeleteBookmark = (bookmarkId: string) => {
+        setBookmarks(bookmarks.filter(b => b.id !== bookmarkId));
+    };
+
     // 하이라이트 노트 업데이트
-    const handleHighlightNoteUpdate = (highlightId: string, note: string) => {
+    const handleUpdateHighlightNote = (highlightId: string, note: string) => {
         setHighlights(highlights.map(h =>
             h.id === highlightId ? { ...h, note } : h
         ));
     };
 
-    // 페이지 이동
-    const goToNextPage = () => {
-        if (!contentRef.current) return;
-
-        // 간단한 구현을 위해 스크롤 위치를 조정
-        contentRef.current.scrollBy({
-            top: contentRef.current.clientHeight * 0.9,
-            behavior: "smooth",
-        });
-    };
-
-    const goToPrevPage = () => {
-        if (!contentRef.current) return;
-
-        contentRef.current.scrollBy({
-            top: -contentRef.current.clientHeight * 0.9,
-            behavior: "smooth",
-        });
+    // 페이지 변경 처리
+    const handlePageChange = (pageNumber: number) => {
+        console.log(`페이지 변경: ${pageNumber}`);
+        // 여기서 필요한 경우 서버에 읽기 진행 상태를 업데이트할 수 있습니다.
     };
 
     return (
-        <div className="flex h-screen overflow-hidden bg-white">
-            {/* 사이드바 */}
-            {sidebarOpen && (
-                <EbookReaderSidebar
-                    title={ebook.title}
-                    tocItems={tocItems}
-                    bookmarks={bookmarks}
-                    highlights={highlights}
-                    activeItemId={activeItemId}
-                    onClose={() => setSidebarOpen(false)}
-                    onTocItemClick={handleTocItemClick}
-                    onBookmarkClick={handleBookmarkClick}
-                    onBookmarkDelete={handleBookmarkDelete}
-                    onHighlightClick={handleHighlightClick}
-                    onHighlightDelete={handleHighlightDelete}
-                    onHighlightNoteUpdate={handleHighlightNoteUpdate}
-                    className="sticky top-0 h-screen overflow-y-auto"
-                />
-            )}
-
-            {/* 메인 콘텐츠 */}
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
-                {/* 상단 툴바 */}
-                <EbookReaderToolbar
-                    title={ebook.title}
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    fontSize={fontSize}
-                    lineHeight={lineHeight}
-                    sidebarOpen={sidebarOpen}
-                    onBackClick={() => navigate(`/ebooks/${ebook.ebook_id}`)}
-                    onToggleSidebar={() => setSidebarOpen(true)}
-                    onAddBookmark={addBookmark}
-                    onFontSizeChange={setFontSize}
-                    onLineHeightChange={setLineHeight}
-                    className="sticky top-0 z-10 bg-white"
-                />
-
-                {/* 콘텐츠 영역 */}
-                <div
-                    ref={contentRef}
-                    className="flex-1 overflow-y-auto p-8 max-w-3xl mx-auto w-full"
-                    style={{ fontSize: `${fontSize}px`, lineHeight: lineHeight }}
-                >
-                    <MarkdownRenderer
-                        content={ebook.content}
-                        highlights={highlights}
-                        onTextSelect={handleTextSelect}
-                    />
-                </div>
-
-                {/* 하단 네비게이션 */}
-                <PageNavigation
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPrevPage={goToPrevPage}
-                    onNextPage={goToNextPage}
-                    className="sticky bottom-0 z-10 bg-white"
-                />
-            </div>
-        </div>
+        <EbookPageViewer
+            ebook={ebook}
+            initialPage={currentPage}
+            highlights={highlights}
+            bookmarks={bookmarks}
+            onAddHighlight={handleAddHighlight}
+            onAddBookmark={handleAddBookmark}
+            onDeleteHighlight={handleDeleteHighlight}
+            onDeleteBookmark={handleDeleteBookmark}
+            onUpdateHighlightNote={handleUpdateHighlightNote}
+            onPageChange={handlePageChange}
+        />
     );
 } 

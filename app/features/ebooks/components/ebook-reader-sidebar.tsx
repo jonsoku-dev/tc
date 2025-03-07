@@ -10,6 +10,7 @@ interface TocItem {
     title: string;
     level: number;
     position: number;
+    pageNumber: number;
 }
 
 interface BookmarkItem {
@@ -17,6 +18,7 @@ interface BookmarkItem {
     position: number;
     title: string;
     createdAt: Date;
+    pageNumber: number;
 }
 
 interface Highlight {
@@ -27,6 +29,7 @@ interface Highlight {
     color: string;
     note?: string;
     createdAt: Date;
+    pageNumber: number;
 }
 
 interface EbookReaderSidebarProps {
