@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Form, useNavigate } from "react-router";
+import { Form, useNavigate, redirect } from "react-router";
 import { Button } from "~/common/components/ui/button";
 import { Input } from "~/common/components/ui/input";
 import { Textarea } from "~/common/components/ui/textarea";
@@ -12,11 +12,102 @@ import { EBOOK_STATUS } from "../constants";
 import { EbookCover } from "../components/ebook-cover";
 import { MarkdownEditor } from "../components/markdown-editor";
 import { TableOfContents } from "../components/table-of-contents";
+import { getServerClient } from "~/server";
 import type { Route } from "./+types/ebook-new-page.page";
 
-export function action({ request }: Route.ActionArgs) {
-    // 실제 구현에서는 Supabase에 전자책 정보를 저장합니다.
-    return { success: true, ebookId: "new-ebook-id" };
+export async function action({ request }: Route.ActionArgs) {
+    const { supabase, headers } = getServerClient(request);
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return redirect("/auth/login", { headers });
+    }
+
+    const formData = await request.formData();
+
+    // 기본 정보 추출
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const price = formData.get("price") ? parseFloat(formData.get("price") as string) : null;
+    const status = formData.get("status") as "draft" | "published" | "archived" || "draft";
+
+    // 메타데이터 추출
+    const pageCount = formData.get("pageCount") ? parseInt(formData.get("pageCount") as string, 10) : null;
+    const readingTime = formData.get("readingTime") ? parseInt(formData.get("readingTime") as string, 10) : null;
+    const language = formData.get("language") as string || "ko";
+    const isbn = formData.get("isbn") as string || null;
+    const isFeatured = formData.get("isFeatured") === "on";
+    const publicationDate = formData.get("publicationDate") as string || null;
+
+    // 콘텐츠 추출
+    const content = formData.get("content") as string || "";
+    const sampleContent = formData.get("sampleContent") as string || "";
+    const tableOfContents = formData.get("tableOfContents") ?
+        JSON.parse(formData.get("tableOfContents") as string) :
+        [];
+
+    // 커버 이미지 처리 (실제 구현에서는 스토리지에 업로드)
+    const coverImageUrl = formData.get("coverImageUrl") as string || null;
+
+    // 전자책 데이터 생성
+    const ebookData = {
+        user_id: user.id,
+        title,
+        description,
+        price,
+        status,
+        page_count: pageCount,
+        reading_time: readingTime,
+        language,
+        isbn,
+        is_featured: isFeatured,
+        publication_date: publicationDate,
+        cover_image_url: coverImageUrl,
+        sample_content: sampleContent,
+        table_of_contents: tableOfContents
+    };
+
+    // Supabase에 전자책 정보 저장
+    const { data: ebook, error } = await supabase
+        .from("ebooks")
+        .insert(ebookData)
+        .select()
+        .single();
+
+    if (error) {
+        console.error("전자책 생성 중 오류가 발생했습니다:", error);
+        return { error: "전자책 생성 중 오류가 발생했습니다." };
+    }
+
+    // 첫 페이지 생성 (목차)
+    if (ebook) {
+        try {
+            await supabase
+                .from("ebook_pages")
+                .insert({
+                    ebook_id: ebook.ebook_id,
+                    page_number: 1,
+                    title: "목차",
+                    content_type: "text",
+                    content: { content: tableOfContents.join("\n") }
+                });
+
+            // 본문 페이지 생성
+            await supabase
+                .from("ebook_pages")
+                .insert({
+                    ebook_id: ebook.ebook_id,
+                    page_number: 2,
+                    title: "본문",
+                    content_type: "text",
+                    content: { content }
+                });
+        } catch (pageError) {
+            console.error("페이지 생성 중 오류가 발생했습니다:", pageError);
+        }
+    }
+
+    return { success: true, ebookId: ebook?.ebook_id };
 }
 
 export function meta({ data }: Route.MetaArgs) {

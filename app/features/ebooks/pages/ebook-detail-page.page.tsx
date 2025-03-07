@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router";
+import { useNavigate, Link, redirect } from "react-router";
 import { Button } from "~/common/components/ui/button";
 import { Badge } from "~/common/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/common/components/ui/card";
@@ -16,144 +16,75 @@ import { ReviewForm } from "../components/review-form";
 import { ReadingProgress } from "../components/reading-progress";
 import { BookmarkList } from "../components/bookmark-list";
 import { HighlightList } from "../components/highlight-list";
+import { getServerClient } from "~/server";
 import type { Route } from "./+types/ebook-detail-page.page";
 
-export function loader({ params }: Route.LoaderArgs) {
-    // 실제 구현에서는 Supabase에서 전자책 정보를 가져옵니다.
+export async function loader({ params, request }: Route.LoaderArgs) {
+    const { supabase, headers } = getServerClient(request);
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return redirect("/auth/login", { headers });
+    }
+
+    // 전자책 정보 가져오기
+    const { data: ebook, error: ebookError } = await supabase
+        .from("ebooks")
+        .select("*")
+        .eq("ebook_id", params.ebookId)
+        .single();
+
+    if (ebookError || !ebook) {
+        console.error("전자책 정보를 가져오는 중 오류가 발생했습니다:", ebookError);
+        return redirect("/ebooks", { headers });
+    }
+
+    // 전자책 페이지 가져오기
+    const { data: pages, error: pagesError } = await supabase
+        .from("ebook_pages")
+        .select("*")
+        .eq("ebook_id", params.ebookId)
+        .order("page_number", { ascending: true });
+
+    // 리뷰 가져오기
+    const { data: reviews, error: reviewsError } = await supabase
+        .from("reviews")
+        .select("*, profiles(name, username)")
+        .eq("ebook_id", params.ebookId)
+        .order("created_at", { ascending: false });
+
+    // 읽기 진행 상태 가져오기
+    const { data: progress, error: progressError } = await supabase
+        .from("reading_progress")
+        .select("*")
+        .eq("ebook_id", params.ebookId)
+        .eq("user_id", user.id)
+        .single();
+
+    // 북마크 가져오기
+    const { data: bookmarks, error: bookmarksError } = await supabase
+        .from("bookmarks")
+        .select("*")
+        .eq("ebook_id", params.ebookId)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+    // 하이라이트 가져오기
+    const { data: highlights, error: highlightsError } = await supabase
+        .from("highlights")
+        .select("*")
+        .eq("ebook_id", params.ebookId)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
     return {
-        ebook: {
-            ebook_id: params.ebookId,
-            title: "마크다운으로 배우는 프로그래밍",
-            description: "마크다운을 활용한 프로그래밍 학습 가이드입니다. 이 책은 마크다운의 기본 문법부터 고급 활용법까지 다양한 내용을 다루고 있습니다.",
-            ebook_status: "published",
-            price: "15000",
-            cover_image_url: "https://images.unsplash.com/photo-1532012197267-da84d127e765?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=987&q=80",
-            publication_date: "2023-05-15T00:00:00Z",
-            reading_time: 180,
-            page_count: 250,
-            language: "ko",
-            is_featured: true,
-            isbn: "979-11-5839-142-9",
-            table_of_contents: [
-                "1장: 마크다운 기초",
-                "2장: 코드 블록 사용하기",
-                "3장: 표 만들기",
-                "4장: 링크와 이미지",
-                "5장: 확장 문법",
-            ],
-            sample_content: `
-# 마크다운 샘플
-
-이 문서는 마크다운의 기본 문법을 보여주는 샘플입니다.
-
-## 기본 문법
-
-- **굵게**: \`**텍스트**\`
-- *기울임*: \`*텍스트*\`
-- ~~취소선~~: \`~~텍스트~~\`
-
-## 코드 블록
-
-\`\`\`javascript
-function hello() {
-  console.log("Hello, Markdown!");
-}
-\`\`\`
-            `,
-            content: `
-# 마크다운으로 배우는 프로그래밍
-
-## 1장: 마크다운 기초
-
-마크다운은 텍스트 기반의 마크업 언어로, 쉽게 읽고 쓸 수 있으며 HTML로 변환이 가능합니다.
-
-### 기본 문법
-
-- **굵게**: \`**텍스트**\`
-- *기울임*: \`*텍스트*\`
-- ~~취소선~~: \`~~텍스트~~\`
-
-## 2장: 코드 블록 사용하기
-
-\`\`\`javascript
-function hello() {
-  console.log("Hello, Markdown!");
-}
-\`\`\`
-
-## 3장: 표 만들기
-
-| 이름 | 설명 |
-|------|------|
-| 마크다운 | 텍스트 기반 마크업 언어 |
-| HTML | 웹 페이지 구조화 언어 |
-      `,
-        },
-        reviews: [
-            {
-                review_id: "1",
-                user_id: "user1",
-                ebook_id: params.ebookId,
-                rating: 5,
-                comment: "정말 유익한 책입니다. 마크다운을 처음 배우는 사람에게 강력 추천합니다!",
-                created_at: "2023-06-10T09:30:00Z",
-                updated_at: "2023-06-10T09:30:00Z",
-                user: {
-                    name: "김철수",
-                    avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Kim",
-                },
-            },
-            {
-                review_id: "2",
-                user_id: "user2",
-                ebook_id: params.ebookId,
-                rating: 4,
-                comment: "전반적으로 좋은 내용이지만, 고급 기능에 대한 설명이 조금 부족합니다.",
-                created_at: "2023-06-15T14:20:00Z",
-                updated_at: "2023-06-15T14:20:00Z",
-                user: {
-                    name: "이영희",
-                    avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Lee",
-                },
-            },
-        ],
-        reading_progress: {
-            current_page: 120,
-            progress_percentage: 48,
-            last_read_at: "2023-07-01T18:45:00Z",
-            is_completed: false,
-        },
-        bookmarks: [
-            {
-                bookmark_id: "1",
-                user_id: "current_user",
-                ebook_id: params.ebookId,
-                page_number: 25,
-                created_at: "2023-06-20T10:15:00Z",
-            },
-            {
-                bookmark_id: "2",
-                user_id: "current_user",
-                ebook_id: params.ebookId,
-                page_number: 78,
-                created_at: "2023-06-25T16:30:00Z",
-            },
-        ],
-        highlights: [
-            {
-                highlight_id: "1",
-                user_id: "current_user",
-                ebook_id: params.ebookId,
-                start_position: 150,
-                end_position: 200,
-                color: "#FFEB3B",
-                note: "마크다운의 핵심 개념",
-                created_at: "2023-06-22T11:20:00Z",
-                updated_at: "2023-06-22T11:20:00Z",
-                text: "마크다운은 텍스트 기반의 마크업 언어로, 쉽게 읽고 쓸 수 있으며 HTML로 변환이 가능합니다.",
-            },
-        ],
-        current_user_id: "current_user",
+        ebook,
+        pages: pages || [],
+        reviews: reviews || [],
+        progress: progress || null,
+        bookmarks: bookmarks || [],
+        highlights: highlights || [],
+        userId: user.id
     };
 }
 
@@ -224,7 +155,7 @@ function MarkdownRenderer({ content }: { content: string }) {
 
 export default function EbookDetailPage({ loaderData }: Route.ComponentProps) {
     const navigate = useNavigate();
-    const { ebook, reviews, reading_progress, bookmarks, highlights, current_user_id } = loaderData;
+    const { ebook, pages, reviews, progress, bookmarks, highlights, userId } = loaderData;
     const [activeTab, setActiveTab] = useState("preview");
     const [showReviewForm, setShowReviewForm] = useState(false);
 
@@ -246,8 +177,9 @@ export default function EbookDetailPage({ loaderData }: Route.ComponentProps) {
         progress_percentage: number;
         is_completed: boolean;
     }) => {
-        // 실제 구현에서는 Supabase에 진행률을 업데이트합니다.
-        console.log("진행률 업데이트:", data);
+        // 실제 구현에서는 Supabase에 진행 상태를 저장합니다.
+        console.log("진행 상태 업데이트:", data);
+        // 성공 후 진행 상태 새로고침
     };
 
     const handleBookmarkDelete = (bookmarkId: string) => {
@@ -262,8 +194,94 @@ export default function EbookDetailPage({ loaderData }: Route.ComponentProps) {
 
     const handleHighlightNoteUpdate = (highlightId: string, note: string) => {
         // 실제 구현에서는 Supabase에서 하이라이트 노트를 업데이트합니다.
-        console.log("하이라이트 노트 업데이트:", highlightId, note);
+        console.log("하이라이트 노트 업데이트:", { highlightId, note });
     };
+
+    // 타입 안전을 위한 기본값 설정
+    const tableOfContents = ebook.table_of_contents as string[] || [];
+    const pageCount = ebook.page_count || 0;
+
+    // 페이지 내용 처리
+    const getPageContent = () => {
+        if (!pages || pages.length === 0) return "";
+
+        // 본문 페이지 찾기 (일반적으로 2번 페이지가 본문)
+        const contentPage = pages.find(page => page.page_number === 2);
+        if (contentPage && contentPage.content) {
+            // JSON 객체에서 content 필드 추출
+            try {
+                if (typeof contentPage.content === 'string') {
+                    const parsed = JSON.parse(contentPage.content);
+                    return parsed.content || "";
+                } else if (typeof contentPage.content === 'object' && contentPage.content !== null) {
+                    return (contentPage.content as any).content || "";
+                }
+            } catch (error) {
+                console.error("페이지 내용 파싱 중 오류 발생:", error);
+            }
+        }
+        return "";
+    };
+
+    const ebookContent = getPageContent();
+
+    // 타입 변환 함수
+    const formatReviews = (reviews: any[]) => {
+        return reviews.map(review => ({
+            ...review,
+            comment: review.comment || "",
+            created_at: review.created_at || new Date().toISOString(),
+            updated_at: review.updated_at || new Date().toISOString(),
+            user: {
+                name: review.profiles?.name || "사용자",
+                username: review.profiles?.username || "",
+                avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${review.profiles?.username || "User"}`
+            }
+        }));
+    };
+
+    const formatProgress = (progress: any) => {
+        if (!progress) {
+            return {
+                current_page: 1,
+                progress_percentage: 0,
+                last_read_at: new Date().toISOString(),
+                is_completed: false
+            };
+        }
+
+        return {
+            current_page: progress.current_page || 1,
+            progress_percentage: progress.progress_percentage || 0,
+            last_read_at: progress.last_read_at || new Date().toISOString(),
+            is_completed: progress.is_completed || false
+        };
+    };
+
+    const formatBookmarks = (bookmarks: any[]) => {
+        return bookmarks.map(bookmark => ({
+            ...bookmark,
+            title: bookmark.title || "",
+            created_at: bookmark.created_at || new Date().toISOString()
+        }));
+    };
+
+    const formatHighlights = (highlights: any[]) => {
+        return highlights.map(highlight => ({
+            ...highlight,
+            text: highlight.text || "",
+            color: highlight.color || "#FFEB3B",
+            note: highlight.note || "",
+            created_at: highlight.created_at || new Date().toISOString(),
+            updated_at: highlight.updated_at || new Date().toISOString()
+        }));
+    };
+
+    // 포맷된 데이터
+    const formattedReviews = formatReviews(reviews);
+    const formattedProgress = formatProgress(progress);
+    const formattedBookmarks = formatBookmarks(bookmarks);
+    const formattedHighlights = formatHighlights(highlights);
 
     return (
         <div className="container mx-auto py-8">
@@ -284,7 +302,7 @@ export default function EbookDetailPage({ loaderData }: Route.ComponentProps) {
                             <div className="flex flex-col md:flex-row gap-6">
                                 <div className="w-full md:w-1/3 lg:w-1/4">
                                     <EbookCover
-                                        imageUrl={ebook.cover_image_url}
+                                        imageUrl={ebook.cover_image_url || undefined}
                                         alt={ebook.title}
                                         className="w-full aspect-[2/3] rounded-md shadow-md"
                                     />
@@ -306,13 +324,13 @@ export default function EbookDetailPage({ loaderData }: Route.ComponentProps) {
                                         <div className="flex items-center text-sm text-gray-500">
                                             <Calendar className="h-4 w-4 mr-2" />
                                             <span>
-                                                출판일: {format(new Date(ebook.publication_date), "yyyy년 MM월 dd일", { locale: ko })}
+                                                출판일: {format(new Date(ebook.publication_date || 0), "yyyy년 MM월 dd일", { locale: ko })}
                                             </span>
                                         </div>
                                         <div className="flex items-center text-sm text-gray-500">
                                             <Clock className="h-4 w-4 mr-2" />
                                             <span>
-                                                읽기 시간: 약 {Math.floor(ebook.reading_time / 60)}시간 {ebook.reading_time % 60}분
+                                                읽기 시간: 약 {Math.floor(ebook.reading_time || 0 / 60)}시간 {ebook.reading_time || 0 % 60}분
                                             </span>
                                         </div>
                                         <div className="flex items-center text-sm text-gray-500">
@@ -341,7 +359,7 @@ export default function EbookDetailPage({ loaderData }: Route.ComponentProps) {
 
                     {/* 목차 */}
                     <TableOfContents
-                        items={ebook.table_of_contents}
+                        items={tableOfContents}
                         className="mb-8"
                     />
 
@@ -357,11 +375,11 @@ export default function EbookDetailPage({ loaderData }: Route.ComponentProps) {
                                     <TabsTrigger value="source">소스</TabsTrigger>
                                 </TabsList>
                                 <TabsContent value="preview" className="min-h-[500px]">
-                                    <MarkdownRenderer content={ebook.content} />
+                                    <MarkdownRenderer content={ebookContent} />
                                 </TabsContent>
                                 <TabsContent value="source" className="min-h-[500px]">
                                     <pre className="p-4 bg-gray-100 rounded-md overflow-auto">
-                                        {ebook.content}
+                                        {ebookContent}
                                     </pre>
                                 </TabsContent>
                             </Tabs>
@@ -371,8 +389,8 @@ export default function EbookDetailPage({ loaderData }: Route.ComponentProps) {
                     {/* 리뷰 섹션 */}
                     <div className="space-y-6">
                         <ReviewList
-                            reviews={reviews}
-                            currentUserId={current_user_id}
+                            reviews={formattedReviews}
+                            currentUserId={userId}
                         />
 
                         {!showReviewForm ? (
@@ -419,23 +437,23 @@ export default function EbookDetailPage({ loaderData }: Route.ComponentProps) {
                     {/* 독서 진행률 */}
                     <ReadingProgress
                         ebookId={ebook.ebook_id}
-                        userId={current_user_id}
-                        pageCount={ebook.page_count}
-                        progress={reading_progress}
+                        userId={userId}
+                        pageCount={pageCount}
+                        progress={formattedProgress}
                         onProgressUpdate={handleProgressUpdate}
                     />
 
                     {/* 북마크 */}
                     <BookmarkList
-                        bookmarks={bookmarks}
-                        currentUserId={current_user_id}
+                        bookmarks={formattedBookmarks}
+                        currentUserId={userId}
                         onBookmarkDelete={handleBookmarkDelete}
                     />
 
                     {/* 하이라이트 */}
                     <HighlightList
-                        highlights={highlights}
-                        currentUserId={current_user_id}
+                        highlights={formattedHighlights}
+                        currentUserId={userId}
                         onHighlightDelete={handleHighlightDelete}
                         onNoteUpdate={handleHighlightNoteUpdate}
                     />

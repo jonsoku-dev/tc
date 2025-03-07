@@ -169,6 +169,7 @@ export type Database = {
           created_at: string | null
           ebook_id: string
           page_number: number
+          title: string | null
           user_id: string
         }
         Insert: {
@@ -176,6 +177,7 @@ export type Database = {
           created_at?: string | null
           ebook_id: string
           page_number: number
+          title?: string | null
           user_id: string
         }
         Update: {
@@ -183,6 +185,7 @@ export type Database = {
           created_at?: string | null
           ebook_id?: string
           page_number?: number
+          title?: string | null
           user_id?: string
         }
         Relationships: [
@@ -327,6 +330,47 @@ export type Database = {
         }
         Relationships: []
       }
+      ebook_pages: {
+        Row: {
+          content: Json
+          content_type: Database["public"]["Enums"]["page_content_type"]
+          created_at: string | null
+          ebook_id: string
+          page_id: string
+          page_number: number
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          content: Json
+          content_type?: Database["public"]["Enums"]["page_content_type"]
+          created_at?: string | null
+          ebook_id: string
+          page_id?: string
+          page_number: number
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          content?: Json
+          content_type?: Database["public"]["Enums"]["page_content_type"]
+          created_at?: string | null
+          ebook_id?: string
+          page_id?: string
+          page_number?: number
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebook_pages_ebook_id_ebooks_ebook_id_fk"
+            columns: ["ebook_id"]
+            isOneToOne: false
+            referencedRelation: "ebooks"
+            referencedColumns: ["ebook_id"]
+          },
+        ]
+      }
       ebook_versions: {
         Row: {
           content_markdown: string | null
@@ -362,6 +406,7 @@ export type Database = {
           created_at: string | null
           description: string | null
           ebook_id: string
+          ebook_status: Database["public"]["Enums"]["ebook_status"]
           is_featured: boolean | null
           isbn: string | null
           language: string | null
@@ -370,7 +415,6 @@ export type Database = {
           publication_date: string | null
           reading_time: number | null
           sample_content: string | null
-          status: Database["public"]["Enums"]["ebook_status"]
           table_of_contents: Json | null
           title: string
           updated_at: string | null
@@ -381,6 +425,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           ebook_id?: string
+          ebook_status?: Database["public"]["Enums"]["ebook_status"]
           is_featured?: boolean | null
           isbn?: string | null
           language?: string | null
@@ -389,7 +434,6 @@ export type Database = {
           publication_date?: string | null
           reading_time?: number | null
           sample_content?: string | null
-          status?: Database["public"]["Enums"]["ebook_status"]
           table_of_contents?: Json | null
           title: string
           updated_at?: string | null
@@ -400,6 +444,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           ebook_id?: string
+          ebook_status?: Database["public"]["Enums"]["ebook_status"]
           is_featured?: boolean | null
           isbn?: string | null
           language?: string | null
@@ -408,7 +453,6 @@ export type Database = {
           publication_date?: string | null
           reading_time?: number | null
           sample_content?: string | null
-          status?: Database["public"]["Enums"]["ebook_status"]
           table_of_contents?: Json | null
           title?: string
           updated_at?: string | null
@@ -432,7 +476,9 @@ export type Database = {
           end_position: number
           highlight_id: string
           note: string | null
+          page_number: number
           start_position: number
+          text: string | null
           updated_at: string | null
           user_id: string
         }
@@ -443,7 +489,9 @@ export type Database = {
           end_position: number
           highlight_id?: string
           note?: string | null
+          page_number: number
           start_position: number
+          text?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -454,7 +502,9 @@ export type Database = {
           end_position?: number
           highlight_id?: string
           note?: string | null
+          page_number?: number
           start_position?: number
+          text?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -907,6 +957,14 @@ export type Database = {
       alert_type: "SYSTEM_NOTIFICATION"
       ebook_status: "draft" | "published" | "archived"
       notification_type: "info" | "warning" | "error"
+      page_content_type:
+        | "text"
+        | "image"
+        | "table"
+        | "code"
+        | "video"
+        | "audio"
+        | "mixed"
       payment_type: "credit_card" | "bank_transfer" | "paypal"
       question_type: "text" | "multiple_choice" | "rating"
       role: "ADVERTISER" | "INFLUENCER" | "ADMIN"

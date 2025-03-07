@@ -3,59 +3,36 @@ import { Button } from "~/common/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/common/components/ui/card";
 import { Badge } from "~/common/components/ui/badge";
 import { PlusCircle, Book, Edit, Trash, Search, Filter, SortDesc } from "lucide-react";
-import { Link } from "react-router";
+import { Link, redirect } from "react-router";
 import { Input } from "~/common/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/common/components/ui/select";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { EbookCover } from "../components/ebook-cover";
+import { getServerClient } from "~/server";
 import type { Route } from "./+types/ebooks-page.page";
 
-export function loader({ request }: Route.LoaderArgs) {
-  // 실제 구현에서는 Supabase에서 전자책 목록을 가져옵니다.
-  return {
-    ebooks: [
-      {
-        ebook_id: "1",
-        title: "마크다운으로 배우는 프로그래밍",
-        description: "마크다운을 활용한 프로그래밍 학습 가이드",
-        ebook_status: "published",
-        price: "15000",
-        cover_image_url: "https://images.unsplash.com/photo-1532012197267-da84d127e765?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=987&q=80",
-        publication_date: "2023-05-15T00:00:00Z",
-        reading_time: 180,
-        page_count: 250,
-        language: "ko",
-        is_featured: true,
-      },
-      {
-        ebook_id: "2",
-        title: "리액트 기초부터 고급까지",
-        description: "리액트 개발의 모든 것",
-        ebook_status: "draft",
-        price: "20000",
-        cover_image_url: "https://images.unsplash.com/photo-1633356122102-3fe601e05bd2?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1470&q=80",
-        publication_date: null,
-        reading_time: 240,
-        page_count: 320,
-        language: "ko",
-        is_featured: false,
-      },
-      {
-        ebook_id: "3",
-        title: "타입스크립트 마스터하기",
-        description: "타입스크립트 심화 학습",
-        ebook_status: "archived",
-        price: "18000",
-        cover_image_url: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1470&q=80",
-        publication_date: "2022-11-20T00:00:00Z",
-        reading_time: 150,
-        page_count: 200,
-        language: "ko",
-        is_featured: false,
-      },
-    ],
-  };
+export async function loader({ request }: Route.LoaderArgs) {
+  const { supabase, headers } = getServerClient(request);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return redirect("/auth/login", { headers });
+  }
+
+  // 사용자의 전자책 목록 가져오기
+  const { data: ebooks, error } = await supabase
+    .from("ebooks")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    console.error("전자책 목록을 가져오는 중 오류가 발생했습니다:", error);
+    return { ebooks: [], error: "전자책 목록을 가져오는 중 오류가 발생했습니다." };
+  }
+
+  return { ebooks: ebooks || [] };
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -79,8 +56,20 @@ export default function EbooksPage({ loaderData }: Route.ComponentProps) {
     archived: "bg-gray-100 text-gray-800",
   };
 
+  // 타입 안전을 위한 데이터 처리
+  const processedEbooks = ebooks.map(ebook => ({
+    ...ebook,
+    cover_image_url: ebook.cover_image_url || undefined,
+    description: ebook.description || "",
+    status: (ebook.ebook_status || "draft") as "published" | "draft" | "archived",
+    publication_date: ebook.publication_date || undefined,
+    is_featured: ebook.is_featured || false,
+    page_count: ebook.page_count || 0,
+    reading_time: ebook.reading_time || 0
+  }));
+
   // 필터링 및 정렬 로직
-  const filteredEbooks = ebooks
+  const filteredEbooks = processedEbooks
     .filter((ebook) => {
       // 검색어 필터링
       if (searchTerm && !ebook.title.toLowerCase().includes(searchTerm.toLowerCase())) {
@@ -88,7 +77,7 @@ export default function EbooksPage({ loaderData }: Route.ComponentProps) {
       }
 
       // 상태 필터링
-      if (statusFilter !== "all" && ebook.ebook_status !== statusFilter) {
+      if (statusFilter !== "all" && ebook.status !== statusFilter) {
         return false;
       }
 
@@ -108,15 +97,15 @@ export default function EbooksPage({ loaderData }: Route.ComponentProps) {
       // 정렬 로직
       switch (sortBy) {
         case "newest":
-          return new Date(b.publication_date || 0).getTime() - new Date(a.publication_date || 0).getTime();
+          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
         case "oldest":
-          return new Date(a.publication_date || 0).getTime() - new Date(b.publication_date || 0).getTime();
+          return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
         case "title":
           return a.title.localeCompare(b.title);
-        case "price_high":
-          return Number(b.price) - Number(a.price);
-        case "price_low":
-          return Number(a.price) - Number(b.price);
+        case "price-high":
+          return Number(b.price || 0) - Number(a.price || 0);
+        case "price-low":
+          return Number(a.price || 0) - Number(b.price || 0);
         default:
           return 0;
       }
@@ -188,8 +177,8 @@ export default function EbooksPage({ loaderData }: Route.ComponentProps) {
               <SelectItem value="newest">최신순</SelectItem>
               <SelectItem value="oldest">오래된순</SelectItem>
               <SelectItem value="title">제목순</SelectItem>
-              <SelectItem value="price_high">가격 높은순</SelectItem>
-              <SelectItem value="price_low">가격 낮은순</SelectItem>
+              <SelectItem value="price-high">가격 높은순</SelectItem>
+              <SelectItem value="price-low">가격 낮은순</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -225,7 +214,7 @@ export default function EbooksPage({ loaderData }: Route.ComponentProps) {
               <div className="relative h-48">
                 <Link to={`/ebooks/${ebook.ebook_id}`}>
                   <EbookCover
-                    imageUrl={ebook.cover_image_url}
+                    imageUrl={ebook.cover_image_url || undefined}
                     alt={ebook.title}
                     className="w-full h-full"
                   />
@@ -246,9 +235,9 @@ export default function EbooksPage({ loaderData }: Route.ComponentProps) {
                       {ebook.description}
                     </CardDescription>
                   </div>
-                  <Badge className={statusColors[ebook.ebook_status as keyof typeof statusColors]}>
-                    {ebook.ebook_status === "published" ? "출판됨" :
-                      ebook.ebook_status === "draft" ? "초안" : "보관됨"}
+                  <Badge className={statusColors[ebook.status as keyof typeof statusColors]}>
+                    {ebook.status === "published" ? "출판됨" :
+                      ebook.status === "draft" ? "초안" : "보관됨"}
                   </Badge>
                 </div>
               </CardHeader>

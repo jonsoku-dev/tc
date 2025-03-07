@@ -7,7 +7,7 @@ as $$
 begin
     if new.raw_app_meta_data is not null then
         if new.raw_app_meta_data ? 'provider' AND new.raw_app_meta_data->>'provider' = 'email' then
-            insert into public.profiles (profile_id, name, username, role)
+            insert into public.profiles (user_id, name, username, role)
             values (new.id, 'Anonymous', 'mr.' || substr(md5(random()::text), 1, 8), 'INFLUENCER');
         end if;
     end if;

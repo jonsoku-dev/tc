@@ -1,193 +1,327 @@
 import { useNavigate } from "react-router";
-import type { Route } from "./+types/ebook-reader-page.page";
+import { createClient } from "~/supa-client";
 import { EbookPageViewer } from "../components/ebook-page-viewer";
-import type { Highlight, BookmarkItem, PageContentType } from "../components/types";
 import { EbookReaderProvider, useEbookReader, useEbookReaderHandlers } from "../machines/ebook-reader.context";
 import { EbookUIProvider, useEbookUI } from "../machines/ebook-ui.context";
+import type { Route } from "./+types/ebook-reader-page.page";
+import type { Highlight, BookmarkItem, PageContentType } from "../components/types";
+import { useSupabase } from "~/common/hooks/use-supabase";
+import React from "react";
 
 // 로더 함수
-export function loader({ params }: Route.LoaderArgs) {
-    // 실제 구현에서는 Supabase에서 전자책 정보를 가져옵니다.
-    return {
-        ebook: {
-            ebook_id: params.ebookId,
-            title: "마크다운으로 배우는 프로그래밍",
-            description: "마크다운을 활용한 프로그래밍 학습 가이드입니다.",
-            cover_image_url: "https://images.unsplash.com/photo-1532012197267-da84d127e765?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=987&q=80",
-            table_of_contents: [
-                "1장: 마크다운 기초",
-                "2장: 코드 블록 사용하기",
-                "3장: 표 만들기",
-                "4장: 링크와 이미지",
-                "5장: 확장 문법",
-            ],
-            page_count: 5,
-            // 페이지 기반 데이터 구조로 변경
-            pages: [
-                {
-                    page_id: "page-1",
-                    ebook_id: params.ebookId,
-                    page_number: 1,
-                    title: "1장: 마크다운 기초",
-                    content_type: "text" as PageContentType,
-                    content: {
-                        content: `
-# 마크다운으로 배우는 프로그래밍
+export async function loader({ params }: Route.LoaderArgs) {
+    // Supabase 클라이언트 생성
+    const supabase = createClient({
+        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+        supabaseKey: import.meta.env.VITE_SUPABASE_KEY,
+    });
 
-## 1장: 마크다운 기초
+    const ebookId = params.ebookId;
 
-마크다운은 텍스트 기반의 마크업 언어로, 쉽게 읽고 쓸 수 있으며 HTML로 변환이 가능합니다.
+    if (!ebookId) {
+        throw new Response("전자책 ID가 필요합니다.", { status: 400 });
+    }
 
-### 기본 문법
+    try {
+        // 전자책 정보 가져오기
+        const { data: ebook, error: ebookError } = await supabase
+            .from('ebooks')
+            .select('*')
+            .eq('ebook_id', ebookId)
+            .single();
 
-- **굵게**: \`**텍스트**\`
-- *기울임*: \`*텍스트*\`
-- ~~취소선~~: \`~~텍스트~~\`
-                        `
-                    },
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                },
-                {
-                    page_id: "page-2",
-                    ebook_id: params.ebookId,
-                    page_number: 2,
-                    title: "2장: 코드 블록 사용하기",
-                    content_type: "text" as PageContentType,
-                    content: {
-                        content: `
-## 2장: 코드 블록 사용하기
+        if (ebookError) {
+            console.error("전자책 정보 조회 오류:", ebookError);
+            throw new Response("전자책 정보를 가져오는 중 오류가 발생했습니다.", { status: 500 });
+        }
 
-코드 블록은 프로그래밍 코드를 표현하는 데 매우 유용합니다.
+        if (!ebook) {
+            throw new Response("전자책을 찾을 수 없습니다.", { status: 404 });
+        }
 
-\`\`\`javascript
-function hello() {
-  console.log("Hello, Markdown!");
-}
-\`\`\`
+        // 전자책 페이지 가져오기
+        const { data: pages, error: pagesError } = await supabase
+            .from('ebook_pages')
+            .select('*')
+            .eq('ebook_id', ebookId)
+            .order('page_number', { ascending: true });
 
-\`\`\`typescript
-interface User {
-  name: string;
-  age: number;
-}
+        if (pagesError) {
+            console.error("전자책 페이지 조회 오류:", pagesError);
+            throw new Response("전자책 페이지를 가져오는 중 오류가 발생했습니다.", { status: 500 });
+        }
 
-function greet(user: User) {
-  return \`Hello, \${user.name}!\`;
-}
-\`\`\`
-                        `
-                    },
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                },
-                {
-                    page_id: "page-3",
-                    ebook_id: params.ebookId,
-                    page_number: 3,
-                    title: "3장: 표 만들기",
-                    content_type: "table" as PageContentType,
-                    content: {
-                        caption: "프로그래밍 언어 비교",
-                        headers: ["이름", "설명", "용도"],
-                        rows: [
-                            ["마크다운", "텍스트 기반 마크업 언어", "문서 작성"],
-                            ["HTML", "웹 페이지 구조화 언어", "웹 페이지 구조"],
-                            ["CSS", "웹 페이지 스타일링 언어", "웹 페이지 디자인"],
-                            ["JavaScript", "웹 페이지 동적 기능 언어", "웹 페이지 기능"]
-                        ]
-                    },
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                },
-                {
-                    page_id: "page-4",
-                    ebook_id: params.ebookId,
-                    page_number: 4,
-                    title: "4장: 링크와 이미지",
-                    content_type: "mixed" as PageContentType,
-                    content: {
-                        blocks: [
-                            {
-                                type: "text" as PageContentType,
-                                content: {
-                                    content: `
-## 4장: 링크와 이미지
+        // 하이라이트 가져오기
+        const { data: highlights, error: highlightsError } = await supabase
+            .from('highlights')
+            .select('*')
+            .eq('ebook_id', ebookId);
 
-### 링크
+        if (highlightsError) {
+            console.error("하이라이트 조회 오류:", highlightsError);
+            // 하이라이트 오류는 치명적이지 않으므로 빈 배열로 처리
+        }
 
-[마크다운 가이드](https://www.markdownguide.org/)
-                                    `
-                                }
-                            },
-                            {
-                                type: "image" as PageContentType,
-                                content: {
-                                    url: "https://markdown-here.com/img/icon256.png",
-                                    alt: "마크다운 로고",
-                                    caption: "마크다운 로고 이미지"
-                                }
-                            }
-                        ]
-                    },
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                },
-                {
-                    page_id: "page-5",
-                    ebook_id: params.ebookId,
-                    page_number: 5,
-                    title: "5장: 확장 문법",
-                    content_type: "text" as PageContentType,
-                    content: {
-                        content: `
-## 5장: 확장 문법
+        // 북마크 가져오기
+        const { data: bookmarks, error: bookmarksError } = await supabase
+            .from('bookmarks')
+            .select('*')
+            .eq('ebook_id', ebookId);
 
-마크다운의 확장 문법에는 다양한 기능이 있습니다.
+        if (bookmarksError) {
+            console.error("북마크 조회 오류:", bookmarksError);
+            // 북마크 오류는 치명적이지 않으므로 빈 배열로 처리
+        }
 
-### 각주
+        // 읽기 진행 상황 가져오기
+        const { data: readingProgress, error: progressError } = await supabase
+            .from('reading_progress')
+            .select('*')
+            .eq('ebook_id', ebookId)
+            .single();
 
-여기에 각주[^1]가 있습니다.
+        if (progressError && progressError.code !== 'PGRST116') { // PGRST116: 결과가 없음
+            console.error("읽기 진행 상황 조회 오류:", progressError);
+            // 진행 상황 오류는 치명적이지 않으므로 무시
+        }
 
-[^1]: 이것은 각주입니다.
-
-### 정의 목록
-
-마크다운
-: 텍스트 기반의 마크업 언어
-
-HTML
-: 웹 페이지를 구조화하는 언어
-                        `
-                    },
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                }
-            ],
-        },
-        highlights: [
-            {
-                id: "1",
-                text: "마크다운은 텍스트 기반의 마크업 언어로",
-                startOffset: 100,
-                endOffset: 120,
-                color: "#FFEB3B",
-                note: "마크다운의 핵심 개념",
-                createdAt: new Date("2023-06-22T11:20:00Z"),
-                pageNumber: 1,
+        // 데이터 반환
+        return {
+            ebook: {
+                ...ebook,
+                pages: pages || [],
+                page_count: pages?.length || 0
             },
-        ],
-        bookmarks: [
-            {
-                id: "1",
+            highlights: highlights?.map(h => ({
+                id: h.highlight_id,
+                text: h.text || "",
+                startOffset: h.start_position,
+                endOffset: h.end_position,
+                color: h.color || "#FFEB3B",
+                note: h.note || undefined,
+                createdAt: new Date(h.created_at || new Date()),
+                pageNumber: h.page_number
+            })) || [],
+            bookmarks: bookmarks?.map(b => ({
+                id: b.bookmark_id,
                 position: 0,
-                title: "코드 블록 부분",
-                createdAt: new Date("2023-06-20T10:15:00Z"),
-                pageNumber: 2,
-            },
-        ],
-        currentPage: 1,
-    };
+                title: b.title || "북마크",
+                createdAt: new Date(b.created_at || new Date()),
+                pageNumber: b.page_number
+            })) || [],
+            currentPage: readingProgress?.current_page || 1
+        };
+    } catch (error) {
+        console.error("전자책 데이터 로딩 오류:", error);
+        if (error instanceof Response) {
+            throw error;
+        }
+        throw new Response("전자책 데이터를 가져오는 중 오류가 발생했습니다.", { status: 500 });
+    }
+}
+
+// 액션 함수 - 읽기 진행 상황, 북마크, 하이라이트 업데이트
+export async function action({ request }: Route.ActionArgs) {
+    const formData = await request.formData();
+    const actionType = formData.get("actionType") as string;
+
+    // Supabase 클라이언트 생성
+    const supabase = createClient({
+        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+        supabaseKey: import.meta.env.VITE_SUPABASE_KEY,
+    });
+
+    try {
+        switch (actionType) {
+            case "updateProgress": {
+                const ebookId = formData.get("ebookId") as string;
+                const userId = formData.get("userId") as string;
+                const currentPage = parseInt(formData.get("currentPage") as string, 10);
+                const progressPercentage = parseFloat(formData.get("progressPercentage") as string);
+                const isCompleted = formData.get("isCompleted") === "true";
+
+                if (!ebookId || !userId || isNaN(currentPage)) {
+                    return { success: false, error: "필수 정보가 누락되었습니다." };
+                }
+
+                // 기존 진행 상황 확인
+                const { data: existingProgress } = await supabase
+                    .from('reading_progress')
+                    .select('*')
+                    .eq('ebook_id', ebookId)
+                    .eq('user_id', userId)
+                    .single();
+
+                if (existingProgress) {
+                    // 기존 진행 상황 업데이트
+                    const { error } = await supabase
+                        .from('reading_progress')
+                        .update({
+                            current_page: currentPage,
+                            progress_percentage: progressPercentage,
+                            is_completed: isCompleted,
+                            last_read_at: new Date().toISOString()
+                        })
+                        .eq('progress_id', existingProgress.progress_id);
+
+                    if (error) throw error;
+                } else {
+                    // 새 진행 상황 생성
+                    const { error } = await supabase
+                        .from('reading_progress')
+                        .insert({
+                            ebook_id: ebookId,
+                            user_id: userId,
+                            current_page: currentPage,
+                            progress_percentage: progressPercentage,
+                            is_completed: isCompleted,
+                            last_read_at: new Date().toISOString()
+                        });
+
+                    if (error) throw error;
+                }
+
+                return { success: true };
+            }
+
+            case "addBookmark": {
+                const ebookId = formData.get("ebookId") as string;
+                const userId = formData.get("userId") as string;
+                const pageNumber = parseInt(formData.get("pageNumber") as string, 10);
+                const title = formData.get("title") as string;
+
+                if (!ebookId || !userId || isNaN(pageNumber)) {
+                    return { success: false, error: "필수 정보가 누락되었습니다." };
+                }
+
+                const { data, error } = await supabase
+                    .from('bookmarks')
+                    .insert({
+                        ebook_id: ebookId,
+                        user_id: userId,
+                        page_number: pageNumber,
+                        title: title || `${pageNumber}페이지 북마크`
+                    })
+                    .select();
+
+                if (error) throw error;
+
+                return {
+                    success: true,
+                    bookmark: {
+                        id: data[0].bookmark_id,
+                        position: 0,
+                        title: data[0].title || "북마크",
+                        createdAt: new Date(data[0].created_at || new Date()),
+                        pageNumber: data[0].page_number
+                    }
+                };
+            }
+
+            case "deleteBookmark": {
+                const bookmarkId = formData.get("bookmarkId") as string;
+
+                if (!bookmarkId) {
+                    return { success: false, error: "북마크 ID가 필요합니다." };
+                }
+
+                const { error } = await supabase
+                    .from('bookmarks')
+                    .delete()
+                    .eq('bookmark_id', bookmarkId);
+
+                if (error) throw error;
+
+                return { success: true };
+            }
+
+            case "addHighlight": {
+                const ebookId = formData.get("ebookId") as string;
+                const userId = formData.get("userId") as string;
+                const pageNumber = parseInt(formData.get("pageNumber") as string, 10);
+                const text = formData.get("text") as string;
+                const startPosition = parseInt(formData.get("startPosition") as string, 10);
+                const endPosition = parseInt(formData.get("endPosition") as string, 10);
+                const color = formData.get("color") as string;
+                const note = formData.get("note") as string;
+
+                if (!ebookId || !userId || isNaN(pageNumber) || !text || isNaN(startPosition) || isNaN(endPosition)) {
+                    return { success: false, error: "필수 정보가 누락되었습니다." };
+                }
+
+                const { data, error } = await supabase
+                    .from('highlights')
+                    .insert({
+                        ebook_id: ebookId,
+                        user_id: userId,
+                        page_number: pageNumber,
+                        text,
+                        start_position: startPosition,
+                        end_position: endPosition,
+                        color: color || "#FFEB3B",
+                        note
+                    })
+                    .select();
+
+                if (error) throw error;
+
+                return {
+                    success: true,
+                    highlight: {
+                        id: data[0].highlight_id,
+                        text: data[0].text || "",
+                        startOffset: data[0].start_position,
+                        endOffset: data[0].end_position,
+                        color: data[0].color || "#FFEB3B",
+                        note: data[0].note || undefined,
+                        createdAt: new Date(data[0].created_at || new Date()),
+                        pageNumber: data[0].page_number
+                    }
+                };
+            }
+
+            case "deleteHighlight": {
+                const highlightId = formData.get("highlightId") as string;
+
+                if (!highlightId) {
+                    return { success: false, error: "하이라이트 ID가 필요합니다." };
+                }
+
+                const { error } = await supabase
+                    .from('highlights')
+                    .delete()
+                    .eq('highlight_id', highlightId);
+
+                if (error) throw error;
+
+                return { success: true };
+            }
+
+            case "updateHighlightNote": {
+                const highlightId = formData.get("highlightId") as string;
+                const note = formData.get("note") as string;
+
+                if (!highlightId) {
+                    return { success: false, error: "하이라이트 ID가 필요합니다." };
+                }
+
+                const { error } = await supabase
+                    .from('highlights')
+                    .update({ note })
+                    .eq('highlight_id', highlightId);
+
+                if (error) throw error;
+
+                return { success: true };
+            }
+
+            default:
+                return { success: false, error: "지원하지 않는 액션 타입입니다." };
+        }
+    } catch (error) {
+        console.error("액션 처리 오류:", error);
+        return { success: false, error: "액션 처리 중 오류가 발생했습니다." };
+    }
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -198,8 +332,19 @@ export function meta({ data }: Route.MetaArgs) {
 }
 
 // 메인 컴포넌트 래퍼
-export default function EbookReaderPage({ loaderData }: Route.ComponentProps) {
+export default function EbookReaderPage({ loaderData, actionData }: Route.ComponentProps) {
     const { ebook, highlights: initialHighlights, bookmarks: initialBookmarks, currentPage } = loaderData;
+    const { supabase } = useSupabase();
+
+    // 액션 데이터 처리
+    React.useEffect(() => {
+        if (actionData?.success) {
+            console.log("액션 성공:", actionData);
+        } else if (actionData?.error) {
+            console.error("액션 오류:", actionData.error);
+            // 여기에 오류 처리 로직 추가
+        }
+    }, [actionData]);
 
     return (
         <EbookReaderProvider
@@ -220,6 +365,8 @@ function EbookReaderContent({ ebook }: { ebook: any }) {
     const navigate = useNavigate();
     const { currentPage, highlights, bookmarks, activeItemId } = useEbookReader();
     const handlers = useEbookReaderHandlers();
+    const { supabase } = useSupabase();
+    const [userId, setUserId] = React.useState<string | null>(null);
     const {
         sidebarOpen,
         fontSize,
@@ -230,6 +377,175 @@ function EbookReaderContent({ ebook }: { ebook: any }) {
         increaseLineHeight,
         decreaseLineHeight
     } = useEbookUI();
+
+    // 사용자 정보 가져오기
+    React.useEffect(() => {
+        async function getUserId() {
+            const { data } = await supabase.auth.getUser();
+            if (data?.user) {
+                setUserId(data.user.id);
+            }
+        }
+        getUserId();
+    }, [supabase]);
+
+    // 페이지 변경 시 진행 상황 업데이트
+    React.useEffect(() => {
+        if (userId && ebook.ebook_id) {
+            const formData = new FormData();
+            formData.append("actionType", "updateProgress");
+            formData.append("ebookId", ebook.ebook_id);
+            formData.append("userId", userId);
+            formData.append("currentPage", currentPage.toString());
+            formData.append("progressPercentage", ((currentPage / ebook.page_count) * 100).toString());
+            formData.append("isCompleted", (currentPage >= ebook.page_count).toString());
+
+            // 진행 상황 업데이트 요청
+            fetch(window.location.pathname, {
+                method: "POST",
+                body: formData
+            }).catch(error => {
+                console.error("진행 상황 업데이트 오류:", error);
+            });
+        }
+    }, [currentPage, ebook.ebook_id, ebook.page_count, userId]);
+
+    // 북마크 추가 핸들러 오버라이드
+    const handleAddBookmark = async (bookmark: Omit<BookmarkItem, "id" | "createdAt">) => {
+        if (!userId) {
+            console.error("사용자 인증이 필요합니다.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("actionType", "addBookmark");
+        formData.append("ebookId", ebook.ebook_id);
+        formData.append("userId", userId);
+        formData.append("pageNumber", bookmark.pageNumber.toString());
+        formData.append("title", bookmark.title);
+
+        try {
+            const response = await fetch(window.location.pathname, {
+                method: "POST",
+                body: formData
+            });
+
+            const result = await response.json();
+            if (result.success && result.bookmark) {
+                handlers.handleAddBookmark({
+                    title: result.bookmark.title,
+                    pageNumber: result.bookmark.pageNumber,
+                    position: result.bookmark.position
+                });
+            }
+        } catch (error) {
+            console.error("북마크 추가 오류:", error);
+        }
+    };
+
+    // 북마크 삭제 핸들러 오버라이드
+    const handleDeleteBookmark = async (id: string) => {
+        const formData = new FormData();
+        formData.append("actionType", "deleteBookmark");
+        formData.append("bookmarkId", id);
+
+        try {
+            const response = await fetch(window.location.pathname, {
+                method: "POST",
+                body: formData
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                handlers.handleDeleteBookmark(id);
+            }
+        } catch (error) {
+            console.error("북마크 삭제 오류:", error);
+        }
+    };
+
+    // 하이라이트 추가 핸들러 오버라이드
+    const handleAddHighlight = async (highlight: Omit<Highlight, "id" | "createdAt">) => {
+        if (!userId) {
+            console.error("사용자 인증이 필요합니다.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("actionType", "addHighlight");
+        formData.append("ebookId", ebook.ebook_id);
+        formData.append("userId", userId);
+        formData.append("pageNumber", highlight.pageNumber.toString());
+        formData.append("text", highlight.text);
+        formData.append("startPosition", highlight.startOffset.toString());
+        formData.append("endPosition", highlight.endOffset.toString());
+        formData.append("color", highlight.color);
+        formData.append("note", highlight.note || "");
+
+        try {
+            const response = await fetch(window.location.pathname, {
+                method: "POST",
+                body: formData
+            });
+
+            const result = await response.json();
+            if (result.success && result.highlight) {
+                handlers.handleAddHighlight({
+                    text: result.highlight.text,
+                    startOffset: result.highlight.startOffset,
+                    endOffset: result.highlight.endOffset,
+                    color: result.highlight.color,
+                    pageNumber: result.highlight.pageNumber,
+                    note: result.highlight.note
+                });
+            }
+        } catch (error) {
+            console.error("하이라이트 추가 오류:", error);
+        }
+    };
+
+    // 하이라이트 삭제 핸들러 오버라이드
+    const handleDeleteHighlight = async (id: string) => {
+        const formData = new FormData();
+        formData.append("actionType", "deleteHighlight");
+        formData.append("highlightId", id);
+
+        try {
+            const response = await fetch(window.location.pathname, {
+                method: "POST",
+                body: formData
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                handlers.handleDeleteHighlight(id);
+            }
+        } catch (error) {
+            console.error("하이라이트 삭제 오류:", error);
+        }
+    };
+
+    // 하이라이트 노트 업데이트 핸들러 오버라이드
+    const handleUpdateHighlightNote = async (id: string, note: string) => {
+        const formData = new FormData();
+        formData.append("actionType", "updateHighlightNote");
+        formData.append("highlightId", id);
+        formData.append("note", note);
+
+        try {
+            const response = await fetch(window.location.pathname, {
+                method: "POST",
+                body: formData
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                handlers.handleUpdateHighlightNote(id, note);
+            }
+        } catch (error) {
+            console.error("하이라이트 노트 업데이트 오류:", error);
+        }
+    };
 
     // 뒤로가기 핸들러
     const handleGoBack = () => {
@@ -245,11 +561,11 @@ function EbookReaderContent({ ebook }: { ebook: any }) {
             currentPage={currentPage}
             highlights={highlights}
             bookmarks={bookmarks}
-            onAddHighlight={handlers.handleAddHighlight}
-            onAddBookmark={handlers.handleAddBookmark}
-            onDeleteHighlight={handlers.handleDeleteHighlight}
-            onDeleteBookmark={handlers.handleDeleteBookmark}
-            onUpdateHighlightNote={handlers.handleUpdateHighlightNote}
+            onAddHighlight={handleAddHighlight}
+            onAddBookmark={handleAddBookmark}
+            onDeleteHighlight={handleDeleteHighlight}
+            onDeleteBookmark={handleDeleteBookmark}
+            onUpdateHighlightNote={handleUpdateHighlightNote}
             onPageChange={handlers.handlePageChange}
             onNextPage={handlers.handleNextPage}
             onPrevPage={handlers.handlePrevPage}

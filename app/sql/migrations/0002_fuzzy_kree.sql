@@ -1,0 +1,1 @@
+ALTER TABLE "ebooks" RENAME COLUMN "status" TO "ebook_status";

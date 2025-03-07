@@ -26,7 +26,7 @@ export const ebooks = pgTable("ebooks", {
     .references(() => users.user_id, { onDelete: "cascade" }),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
-  ebook_status: ebookStatusEnum("status").notNull().default("draft"),
+  ebook_status: ebookStatusEnum("ebook_status").notNull().default("draft"),
   price: numeric("price"),
   // 새로운 필드 추가
   cover_image_url: text("cover_image_url"),
