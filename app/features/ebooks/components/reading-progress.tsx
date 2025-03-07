@@ -4,7 +4,7 @@ import { Button } from "~/common/components/ui/button";
 import { Slider } from "~/common/components/ui/slider";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { BookOpen, CheckCircle2 } from "lucide-react";
+import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface ReadingProgressProps {
     ebookId: string;
@@ -21,6 +21,8 @@ interface ReadingProgressProps {
         progress_percentage: number;
         is_completed: boolean;
     }) => void;
+    onPrevPage?: () => void;
+    onNextPage?: () => void;
     className?: string;
 }
 
@@ -30,6 +32,8 @@ export function ReadingProgress({
     pageCount,
     progress,
     onProgressUpdate,
+    onPrevPage,
+    onNextPage,
     className = "",
 }: ReadingProgressProps) {
     const [currentPage, setCurrentPage] = useState(progress.current_page);
@@ -55,7 +59,7 @@ export function ReadingProgress({
     const progressPercentage = Math.round((currentPage / pageCount) * 100);
 
     return (
-        <Card className={className}>
+        <Card className={`${className} flex flex-col`}>
             <CardHeader>
                 <div className="flex justify-between items-center">
                     <CardTitle>독서 진행률</CardTitle>
@@ -146,6 +150,29 @@ export function ReadingProgress({
                         </div>
                     )}
                 </div>
+                {onPrevPage && onNextPage && (
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                        <Button
+                            variant="ghost"
+                            onClick={onPrevPage}
+                            disabled={currentPage <= 1}
+                        >
+                            <ChevronLeft className="h-4 w-4 mr-2" />
+                            이전 페이지
+                        </Button>
+                        <div className="text-sm text-gray-500">
+                            {currentPage} / {pageCount} 페이지
+                        </div>
+                        <Button
+                            variant="ghost"
+                            onClick={onNextPage}
+                            disabled={currentPage >= pageCount}
+                        >
+                            다음 페이지
+                            <ChevronRight className="h-4 w-4 ml-2" />
+                        </Button>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

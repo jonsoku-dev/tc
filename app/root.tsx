@@ -48,7 +48,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
       const { count } = await supabase
         .from("alerts")
         .select("*", { count: "exact", head: true })
-        .eq("recipient_id", profile.profile_id)
+        .eq("recipient_id", user.id)
         .eq("alert_status", "UNREAD");
 
       unreadAlertCount = count || 0;
@@ -57,7 +57,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     return {
       isAuthenticated: !!user,
       unreadAlertCount,
-      profile: profile,
+      profile,
     }
   }
 
@@ -79,10 +79,13 @@ interface AppLayoutProps {
 }
 
 function AppLayout({ children, isAuthenticated, unreadAlertCount, profile, isLoading, pathname }: AppLayoutProps) {
+  const isEbookReader = pathname.includes("/ebooks/") && pathname.includes("/read");
+
   return (
     <div className={cn({
-      "px-20 py-28": !pathname.includes("/auth"),
+      "px-20 py-28": !pathname.includes("/auth") && !isEbookReader,
       "opacity-50 transition-opacity duration-300 animate-pulse": isLoading,
+      "h-screen overflow-hidden": isEbookReader,
     })}>
       {isAuthenticated && <Navigation unreadAlertCount={unreadAlertCount} profile={profile} />}
       {children}

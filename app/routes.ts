@@ -29,6 +29,7 @@ export default [
         route("/new", "features/ebooks/pages/ebook-new-page.page.tsx"),
         route("/:ebookId", "features/ebooks/pages/ebook-detail-page.page.tsx"),
         route("/:ebookId/edit", "features/ebooks/pages/ebook-edit-page.page.tsx"),
+        route("/:ebookId/read", "features/ebooks/pages/ebook-reader-page.page.tsx"),
     ]),
 
     // 인터뷰 관련 라우트

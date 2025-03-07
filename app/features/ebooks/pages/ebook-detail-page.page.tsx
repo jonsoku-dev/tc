@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, Link } from "react-router";
 import { Button } from "~/common/components/ui/button";
 import { Badge } from "~/common/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/common/components/ui/card";
@@ -398,7 +398,13 @@ export default function EbookDetailPage({ loaderData }: Route.ComponentProps) {
                         <CardContent>
                             <p className="text-2xl font-bold mb-4">{Number(ebook.price).toLocaleString()}원</p>
                             <div className="space-y-4">
-                                <Button className="w-full">
+                                <Button className="w-full" asChild>
+                                    <Link to={`/ebooks/${ebook.ebook_id}/read`}>
+                                        <Book className="mr-2 h-4 w-4" />
+                                        읽기
+                                    </Link>
+                                </Button>
+                                <Button variant="outline" className="w-full">
                                     <ShoppingCart className="mr-2 h-4 w-4" />
                                     장바구니에 추가
                                 </Button>
