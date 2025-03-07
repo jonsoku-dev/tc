@@ -170,6 +170,7 @@ export type Database = {
           ebook_id: string
           page_number: number
           title: string | null
+          updated_at: string | null
           user_id: string
         }
         Insert: {
@@ -178,6 +179,7 @@ export type Database = {
           ebook_id: string
           page_number: number
           title?: string | null
+          updated_at?: string | null
           user_id: string
         }
         Update: {
@@ -186,6 +188,7 @@ export type Database = {
           ebook_id?: string
           page_number?: number
           title?: string | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -264,35 +267,47 @@ export type Database = {
       categories: {
         Row: {
           category_id: string
+          created_at: string | null
           name: string
+          updated_at: string | null
         }
         Insert: {
           category_id?: string
+          created_at?: string | null
           name: string
+          updated_at?: string | null
         }
         Update: {
           category_id?: string
+          created_at?: string | null
           name?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
       collaborators: {
         Row: {
           collaborator_id: string
+          created_at: string | null
           ebook_id: string
           permission: string
+          updated_at: string | null
           user_id: string
         }
         Insert: {
           collaborator_id?: string
+          created_at?: string | null
           ebook_id: string
           permission?: string
+          updated_at?: string | null
           user_id: string
         }
         Update: {
           collaborator_id?: string
+          created_at?: string | null
           ebook_id?: string
           permission?: string
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -330,10 +345,45 @@ export type Database = {
         }
         Relationships: []
       }
+      ebook_categories: {
+        Row: {
+          category_id: string
+          created_at: string | null
+          ebook_category_id: string
+          ebook_id: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string | null
+          ebook_category_id?: string
+          ebook_id: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string | null
+          ebook_category_id?: string
+          ebook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebook_categories_category_id_categories_category_id_fk"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["category_id"]
+          },
+          {
+            foreignKeyName: "ebook_categories_ebook_id_ebooks_ebook_id_fk"
+            columns: ["ebook_id"]
+            isOneToOne: false
+            referencedRelation: "ebooks"
+            referencedColumns: ["ebook_id"]
+          },
+        ]
+      }
       ebook_pages: {
         Row: {
-          content: Json
-          content_type: Database["public"]["Enums"]["page_content_type"]
+          blocks: Json | null
           created_at: string | null
           ebook_id: string
           page_id: string
@@ -343,8 +393,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          content: Json
-          content_type?: Database["public"]["Enums"]["page_content_type"]
+          blocks?: Json | null
           created_at?: string | null
           ebook_id: string
           page_id?: string
@@ -354,8 +403,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          content?: Json
-          content_type?: Database["public"]["Enums"]["page_content_type"]
+          blocks?: Json | null
           created_at?: string | null
           ebook_id?: string
           page_id?: string
@@ -377,18 +425,21 @@ export type Database = {
       ebook_versions: {
         Row: {
           content_markdown: string | null
+          created_at: string | null
           ebook_id: string
           version_id: string
           version_number: number
         }
         Insert: {
           content_markdown?: string | null
+          created_at?: string | null
           ebook_id: string
           version_id?: string
           version_number: number
         }
         Update: {
           content_markdown?: string | null
+          created_at?: string | null
           ebook_id?: string
           version_id?: string
           version_number?: number
@@ -478,7 +529,7 @@ export type Database = {
           note: string | null
           page_number: number
           start_position: number
-          text: string | null
+          text: string
           updated_at: string | null
           user_id: string
         }
@@ -491,7 +542,7 @@ export type Database = {
           note?: string | null
           page_number: number
           start_position: number
-          text?: string | null
+          text: string
           updated_at?: string | null
           user_id: string
         }
@@ -504,7 +555,7 @@ export type Database = {
           note?: string | null
           page_number?: number
           start_position?: number
-          text?: string | null
+          text?: string
           updated_at?: string | null
           user_id?: string
         }
@@ -646,30 +697,36 @@ export type Database = {
       }
       reading_progress: {
         Row: {
+          created_at: string | null
           current_page: number | null
           ebook_id: string
           is_completed: boolean | null
           last_read_at: string | null
           progress_id: string
           progress_percentage: number | null
+          updated_at: string | null
           user_id: string
         }
         Insert: {
+          created_at?: string | null
           current_page?: number | null
           ebook_id: string
           is_completed?: boolean | null
           last_read_at?: string | null
           progress_id?: string
           progress_percentage?: number | null
+          updated_at?: string | null
           user_id: string
         }
         Update: {
+          created_at?: string | null
           current_page?: number | null
           ebook_id?: string
           is_completed?: boolean | null
           last_read_at?: string | null
           progress_id?: string
           progress_percentage?: number | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -957,14 +1014,6 @@ export type Database = {
       alert_type: "SYSTEM_NOTIFICATION"
       ebook_status: "draft" | "published" | "archived"
       notification_type: "info" | "warning" | "error"
-      page_content_type:
-        | "text"
-        | "image"
-        | "table"
-        | "code"
-        | "video"
-        | "audio"
-        | "mixed"
       payment_type: "credit_card" | "bank_transfer" | "paypal"
       question_type: "text" | "multiple_choice" | "rating"
       role: "ADVERTISER" | "INFLUENCER" | "ADMIN"

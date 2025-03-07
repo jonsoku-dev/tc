@@ -1,26 +1,23 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Form, useNavigate } from "react-router";
-import { Button } from "~/common/components/ui/button";
+import { useSupabase } from "~/common/hooks/use-supabase";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/common/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/common/components/ui/card";
 import { Input } from "~/common/components/ui/input";
 import { Textarea } from "~/common/components/ui/textarea";
+import { Button } from "~/common/components/ui/button";
 import { Label } from "~/common/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/common/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/common/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/common/components/ui/select";
 import { ArrowLeft, Save } from "lucide-react";
 import { format } from "date-fns";
-import { EBOOK_STATUS, PAGE_CONTENT_TYPE } from "../constants";
+import { EBOOK_STATUS } from "../constants";
 import { EbookCover } from "../components/ebook-cover";
 import { MarkdownEditor } from "../components/markdown-editor";
-import { PageEditor } from "../components/page-editor";
 import type { PageItem } from "../components/page-editor";
+import { PageEditor } from "../components/page-editor";
 import type { Route } from "./+types/ebook-edit-page.page";
 import { createClient } from "~/supa-client";
-import { useSupabase } from "~/common/hooks/use-supabase";
 import { toast } from "sonner";
-
-// PAGE_CONTENT_TYPE 타입 정의
-type PageContentType = typeof PAGE_CONTENT_TYPE[number];
 
 export async function loader({ params }: Route.LoaderArgs) {
     const ebookId = params.ebookId;
@@ -158,8 +155,7 @@ export async function action({ request, params }: Route.ActionArgs) {
         const pagesToUpdate: Array<{
             page_id: string;
             title: string;
-            content_type: PageContentType;
-            content: any;
+            blocks: any[];
             position: number;
             page_number: number;
         }> = [];
@@ -167,8 +163,7 @@ export async function action({ request, params }: Route.ActionArgs) {
         const pagesToCreate: Array<{
             ebook_id: string;
             title: string;
-            content_type: PageContentType;
-            content: any;
+            blocks: any[];
             position: number;
             page_number: number;
         }> = [];
@@ -184,8 +179,7 @@ export async function action({ request, params }: Route.ActionArgs) {
                 pagesToUpdate.push({
                     page_id: pageId,
                     title: page.title,
-                    content_type: page.content_type as PageContentType,
-                    content: page.content,
+                    blocks: page.blocks,
                     position: page.position,
                     page_number: page.position // 페이지 번호와 위치를 동일하게 설정
                 });
@@ -194,8 +188,7 @@ export async function action({ request, params }: Route.ActionArgs) {
                 pagesToCreate.push({
                     ebook_id: ebookId,
                     title: page.title,
-                    content_type: page.content_type as PageContentType,
-                    content: page.content,
+                    blocks: page.blocks,
                     position: page.position,
                     page_number: page.position // 페이지 번호와 위치를 동일하게 설정
                 });
@@ -225,13 +218,12 @@ export async function action({ request, params }: Route.ActionArgs) {
         }
 
         // 4.2. 업데이트할 페이지 처리
-        for (const page of pagesToUpdate) {
+        const updatePromises = pagesToUpdate.map(async (page) => {
             const { error: updatePageError } = await supabase
                 .from('ebook_pages')
                 .update({
                     title: page.title,
-                    content_type: page.content_type,
-                    content: page.content,
+                    blocks: page.blocks,
                     position: page.position,
                     page_number: page.page_number
                 })
@@ -241,19 +233,25 @@ export async function action({ request, params }: Route.ActionArgs) {
                 console.error("페이지 업데이트 오류:", updatePageError);
                 return { success: false, error: "페이지를 업데이트하는 중 오류가 발생했습니다." };
             }
-        }
+        });
 
         // 4.3. 새 페이지 생성
-        if (pagesToCreate.length > 0) {
+        const insertPromises = pagesToCreate.map(async (page) => {
             const { error: createError } = await supabase
                 .from('ebook_pages')
-                .insert(pagesToCreate);
+                .insert({
+                    ebook_id: ebookId,
+                    title: page.title,
+                    blocks: page.blocks,
+                    position: page.position,
+                    page_number: page.page_number
+                });
 
             if (createError) {
                 console.error("페이지 생성 오류:", createError);
                 return { success: false, error: "페이지를 생성하는 중 오류가 발생했습니다." };
             }
-        }
+        });
 
         return { success: true, ebookId };
     } catch (error) {
@@ -299,10 +297,9 @@ export default function EbookEditPage({ loaderData, actionData }: Route.Componen
     useEffect(() => {
         if (ebook.pages && ebook.pages.length > 0) {
             const formattedPages = ebook.pages.map((page: any) => ({
-                id: `page-id-${page.page_id}`, // 기존 페이지 ID를 식별할 수 있도록 접두사 추가
+                id: page.page_id,
                 title: page.title || `페이지 ${page.page_number}`,
-                content_type: page.content_type,
-                content: page.content,
+                blocks: Array.isArray(page.blocks) ? page.blocks : [],
                 position: page.position || page.page_number
             }));
             setPages(formattedPages);

@@ -29,6 +29,13 @@
       "when": 1741340888817,
       "tag": "0003_spooky_nehzno",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1741359163745,
+      "tag": "0004_goofy_norrin_radd",
+      "breakpoints": true
     }
   ]
 }

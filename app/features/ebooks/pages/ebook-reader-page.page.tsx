@@ -1,10 +1,11 @@
-import { useNavigate } from "react-router";
+import { useEffect, useState, useRef } from "react";
+import { Form, useNavigate } from "react-router";
 import { createClient } from "~/supa-client";
 import { EbookPageViewer } from "../components/ebook-page-viewer";
 import { EbookReaderProvider, useEbookReader, useEbookReaderHandlers } from "../machines/ebook-reader.context";
 import { EbookUIProvider, useEbookUI } from "../machines/ebook-ui.context";
 import type { Route } from "./+types/ebook-reader-page.page";
-import type { Highlight, BookmarkItem, PageContentType } from "../components/types";
+import type { Highlight, BookmarkItem } from "../components/types";
 import { useSupabase } from "~/common/hooks/use-supabase";
 import React from "react";
 

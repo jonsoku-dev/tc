@@ -11,12 +11,12 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { EBOOK_STATUS, PAGE_CONTENT_TYPE } from "./constants";
+import { EBOOK_STATUS } from "./constants";
 import { users } from "../users/schema";
+import type { Block } from "./components/types";
 
 // Enum 정의
 export const ebookStatusEnum = pgEnum("ebook_status", EBOOK_STATUS);
-export const pageContentTypeEnum = pgEnum("page_content_type", PAGE_CONTENT_TYPE);
 
 // ebooks 테이블 (확장된 필드 포함)
 export const ebooks = pgTable("ebooks", {
@@ -41,7 +41,7 @@ export const ebooks = pgTable("ebooks", {
   updated_at: timestamp("updated_at").defaultNow(),
 });
 
-// ebook_pages 테이블 (블록 기반 아키텍처로 수정)
+// ebook_pages 테이블 (블록 기반 아키텍처)
 export const ebook_pages = pgTable("ebook_pages", {
   page_id: uuid("page_id").primaryKey().defaultRandom(),
   ebook_id: uuid("ebook_id")
@@ -50,11 +50,7 @@ export const ebook_pages = pgTable("ebook_pages", {
   page_number: integer("page_number").notNull(),
   position: integer("position").notNull(),
   title: varchar("title", { length: 255 }),
-  // 레거시 필드 (이전 버전과의 호환성 유지)
-  content_type: pageContentTypeEnum("content_type"),
-  content: jsonb("content"),
-  // 새로운 블록 기반 필드
-  blocks: jsonb("blocks"), // 블록 배열을 JSON으로 저장
+  blocks: jsonb("blocks").$type<Block[]>(), // 블록 배열을 JSON으로 저장하고 타입 명시
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 });

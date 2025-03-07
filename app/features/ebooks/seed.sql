@@ -7,14 +7,50 @@ VALUES
   
   (uuid_generate_v4(), '763ffa1a-1ce6-49d6-9ba5-2bcc8f2d39be', '데이터 과학 입문', '데이터 분석과 머신러닝의 기초', 'draft', 20000, 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80', '데이터 과학의 기본 개념과 도구를 소개합니다...', 180, 'ko', NULL, '978-5678901234', false, 360);
 
--- ebook_pages 테이블 시드 데이터 (레거시 방식)
-INSERT INTO ebook_pages (page_id, ebook_id, page_number, position, title, content_type, content)
+-- ebook_pages 테이블 시드 데이터 (프로그래밍의 기초)
+INSERT INTO ebook_pages (page_id, ebook_id, page_number, position, title, blocks)
 VALUES
-  (uuid_generate_v4(), (SELECT ebook_id FROM ebooks WHERE title = '프로그래밍의 기초' ORDER BY created_at DESC LIMIT 1), 1, 1, '프로그래밍이란 무엇인가?', 'text', '{"content": "프로그래밍은 컴퓨터에게 특정 작업을 수행하도록 지시하는 과정입니다. 이는 마치 요리 레시피를 작성하는 것과 유사합니다. 정확한 단계와 재료(데이터)를 지정하여 원하는 결과물을 얻을 수 있습니다.", "style": {"fontSize": "16px", "lineHeight": "1.6"}}'),
+  (uuid_generate_v4(), (SELECT ebook_id FROM ebooks WHERE title = '프로그래밍의 기초' ORDER BY created_at DESC LIMIT 1), 1, 1, '프로그래밍이란 무엇인가?', 
+   '[
+      {
+        "id": "block-1",
+        "type": "paragraph",
+        "content": "프로그래밍은 컴퓨터에게 특정 작업을 수행하도록 지시하는 과정입니다. 이는 마치 요리 레시피를 작성하는 것과 유사합니다. 정확한 단계와 재료(데이터)를 지정하여 원하는 결과물을 얻을 수 있습니다.",
+        "style": {"fontSize": "16px", "lineHeight": "1.6"},
+        "position": 1
+      }
+   ]'),
   
-  (uuid_generate_v4(), (SELECT ebook_id FROM ebooks WHERE title = '프로그래밍의 기초' ORDER BY created_at DESC LIMIT 1), 2, 2, '첫 번째 프로그램 작성하기', 'mixed', '{"blocks": [{"type": "text", "content": "프로그래밍 언어를 사용하여 첫 번째 프로그램을 작성해 봅시다. 가장 기본적인 예제는 \"Hello, World!\"를 출력하는 프로그램입니다."}, {"type": "code", "language": "python", "code": "print(\"Hello, World!\")"}]}'),
+  (uuid_generate_v4(), (SELECT ebook_id FROM ebooks WHERE title = '프로그래밍의 기초' ORDER BY created_at DESC LIMIT 1), 2, 2, '첫 번째 프로그램 작성하기', 
+   '[
+      {
+        "id": "block-1",
+        "type": "paragraph",
+        "content": "프로그래밍 언어를 사용하여 첫 번째 프로그램을 작성해 봅시다. 가장 기본적인 예제는 \"Hello, World!\"를 출력하는 프로그램입니다.",
+        "position": 1
+      },
+      {
+        "id": "block-2",
+        "type": "code",
+        "language": "python",
+        "code": "print(\"Hello, World!\")",
+        "position": 2
+      }
+   ]'),
   
-  (uuid_generate_v4(), (SELECT ebook_id FROM ebooks WHERE title = '프로그래밍의 기초' ORDER BY created_at DESC LIMIT 1), 3, 3, '프로그래밍 언어의 종류', 'image', '{"url": "https://images.unsplash.com/photo-1555066931-4365d14bab8c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80", "alt": "다양한 프로그래밍 언어", "caption": "현대 소프트웨어 개발에 사용되는 다양한 프로그래밍 언어들", "width": 1170, "height": 780}');
+  (uuid_generate_v4(), (SELECT ebook_id FROM ebooks WHERE title = '프로그래밍의 기초' ORDER BY created_at DESC LIMIT 1), 3, 3, '프로그래밍 언어의 종류', 
+   '[
+      {
+        "id": "block-1",
+        "type": "image",
+        "url": "https://images.unsplash.com/photo-1555066931-4365d14bab8c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80",
+        "alt": "다양한 프로그래밍 언어",
+        "caption": "현대 소프트웨어 개발에 사용되는 다양한 프로그래밍 언어들",
+        "width": 1170,
+        "height": 780,
+        "position": 1
+      }
+   ]');
 
 -- ebook_pages 테이블 시드 데이터 (블록 기반 방식)
 INSERT INTO ebook_pages (page_id, ebook_id, page_number, position, title, blocks)
@@ -154,7 +190,7 @@ VALUES
         "id": "block-4",
         "type": "code",
         "language": "python",
-        "code": "import matplotlib.pyplot as plt\nimport numpy as np\n\n# 데이터 생성\nx = np.linspace(0, 10, 100)\ny = np.sin(x)\n\n# 그래프 그리기\nplt.figure(figsize=(10, 6))\nplt.plot(x, y, \'b-\', linewidth=2)\nplt.title(\'Sine Wave\')\nplt.xlabel(\'x\')\nplt.ylabel(\'sin(x)\')\nplt.grid(True)\nplt.show()",
+        "code": "import matplotlib.pyplot as plt\nimport numpy as np\n\n# 데이터 생성\nx = np.linspace(0, 10, 100)\ny = np.sin(x)\n\n# 그래프 그리기\nplt.figure(figsize=(10, 6))\nplt.plot(x, y, \"b-\", linewidth=2)\nplt.title(\"Sine Wave\")\nplt.xlabel(\"x\")\nplt.ylabel(\"sin(x)\")\nplt.grid(True)\nplt.show()",
         "caption": "Python을 사용한 사인 파동 그래프 생성 코드",
         "position": 4
       }

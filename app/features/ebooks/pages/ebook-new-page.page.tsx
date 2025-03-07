@@ -81,18 +81,17 @@ export async function action({ request }: Route.ActionArgs) {
     // 페이지 생성
     if (ebook && pages.length > 0) {
         try {
-            const pagesData = pages.map((page: PageItem) => ({
+            const formattedPages = JSON.parse(formData.get("pages") as string).map((page: any) => ({
                 ebook_id: ebook.ebook_id,
-                page_number: page.position,
                 position: page.position,
                 title: page.title,
-                content_type: page.content_type,
-                content: page.content
+                blocks: page.blocks,
+                page_number: page.position // 페이지 번호와 위치를 동일하게 설정
             }));
 
             const { error: pagesError } = await supabase
                 .from("ebook_pages")
-                .insert(pagesData);
+                .insert(formattedPages);
 
             if (pagesError) {
                 console.error("페이지 생성 중 오류가 발생했습니다:", pagesError);

@@ -7,9 +7,9 @@ import { Input } from "~/common/components/ui/input";
 import { Label } from "~/common/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/common/components/ui/select";
 import { Textarea } from "~/common/components/ui/textarea";
-import { GripVertical, Plus, Trash, Edit, ChevronDown, ChevronUp, Image, Code, Video, Music, Table, List, Quote, Heading, Type, Minus } from "lucide-react";
+import { GripVertical, Plus, Trash, Edit, ChevronDown, ChevronUp, Image, Code, Video, Music, Table, Heading, Type } from "lucide-react";
 import { MarkdownEditor } from "./markdown-editor";
-import type { BlockUnion } from "./types";
+import type { Block, BlockType } from "./types";
 
 // 블록 타입 옵션
 const BLOCK_TYPES = [
@@ -20,9 +20,7 @@ const BLOCK_TYPES = [
     { value: "video", label: "비디오", icon: <Video className="h-4 w-4" /> },
     { value: "audio", label: "오디오", icon: <Music className="h-4 w-4" /> },
     { value: "table", label: "테이블", icon: <Table className="h-4 w-4" /> },
-    { value: "list", label: "목록", icon: <List className="h-4 w-4" /> },
-    { value: "quote", label: "인용구", icon: <Quote className="h-4 w-4" /> },
-    { value: "divider", label: "구분선", icon: <Minus className="h-4 w-4" /> },
+    { value: "markdown", label: "마크다운", icon: <Type className="h-4 w-4" /> },
 ];
 
 // 코드 언어 옵션
@@ -51,8 +49,8 @@ const CODE_LANGUAGES = [
 ];
 
 interface BlockEditorProps {
-    blocks: BlockUnion[];
-    onBlocksChange: (blocks: BlockUnion[]) => void;
+    blocks: Block[];
+    onBlocksChange: (blocks: Block[]) => void;
     className?: string;
 }
 
@@ -90,21 +88,25 @@ export function BlockEditor({ blocks, onBlocksChange, className = "" }: BlockEdi
     };
 
     // 블록 타입에 따른 새 블록 생성
-    const createNewBlock = (type: string, position: number): BlockUnion => {
+    const createNewBlock = (type: string, position: number): Block => {
         const id = uuidv4();
 
         switch (type) {
             case "paragraph":
                 return {
                     id,
-                    type: "paragraph",
+                    type: "paragraph" as const,
                     position,
                     content: "",
+                    style: {
+                        fontSize: "16px",
+                        lineHeight: "1.6",
+                    },
                 };
             case "heading":
                 return {
                     id,
-                    type: "heading",
+                    type: "heading" as const,
                     position,
                     content: "",
                     level: 2,
@@ -112,74 +114,66 @@ export function BlockEditor({ blocks, onBlocksChange, className = "" }: BlockEdi
             case "image":
                 return {
                     id,
-                    type: "image",
+                    type: "image" as const,
                     position,
                     url: "",
                     alt: "",
                     caption: "",
+                    width: 0,
+                    height: 0,
                 };
             case "code":
                 return {
                     id,
-                    type: "code",
+                    type: "code" as const,
                     position,
-                    code: "",
                     language: "javascript",
-                };
-            case "video":
-                return {
-                    id,
-                    type: "video",
-                    position,
-                    url: "",
+                    code: "",
                     caption: "",
-                    controls: true,
-                };
-            case "audio":
-                return {
-                    id,
-                    type: "audio",
-                    position,
-                    url: "",
-                    caption: "",
-                    controls: true,
                 };
             case "table":
                 return {
                     id,
-                    type: "table",
+                    type: "table" as const,
                     position,
                     headers: ["제목 1", "제목 2", "제목 3"],
                     rows: [
-                        ["내용 1", "내용 2", "내용 3"],
-                        ["내용 4", "내용 5", "내용 6"],
+                        ["내용 1-1", "내용 1-2", "내용 1-3"],
+                        ["내용 2-1", "내용 2-2", "내용 2-3"],
                     ],
+                    caption: "",
                 };
-            case "list":
+            case "video":
                 return {
                     id,
-                    type: "list",
+                    type: "video" as const,
                     position,
-                    items: ["항목 1", "항목 2", "항목 3"],
-                    ordered: false,
+                    url: "",
+                    caption: "",
+                    controls: true,
+                    autoplay: false,
                 };
-            case "quote":
+            case "audio":
                 return {
                     id,
-                    type: "quote",
+                    type: "audio" as const,
+                    position,
+                    url: "",
+                    caption: "",
+                    controls: true,
+                    autoplay: false,
+                };
+            case "markdown":
+                return {
+                    id,
+                    type: "markdown" as const,
                     position,
                     content: "",
-                };
-            case "divider":
-                return {
-                    id,
-                    type: "divider",
-                    position,
                 };
             default:
                 return {
                     id,
-                    type: "paragraph",
+                    type: "paragraph" as const,
                     position,
                     content: "",
                 };
@@ -187,10 +181,78 @@ export function BlockEditor({ blocks, onBlocksChange, className = "" }: BlockEdi
     };
 
     // 블록 업데이트
-    const updateBlock = (id: string, updates: Partial<BlockUnion>) => {
-        const updatedBlocks = blocks.map((block) =>
-            block.id === id ? { ...block, ...updates } : block
-        );
+    const updateBlock = (id: string, updates: Partial<Block>) => {
+        const blockIndex = blocks.findIndex(block => block.id === id);
+        if (blockIndex === -1) return;
+
+        const currentBlock = blocks[blockIndex];
+
+        // 타입에 따라 적절한 업데이트 로직 적용
+        let newBlock: Block;
+
+        switch (currentBlock.type) {
+            case "paragraph":
+                newBlock = {
+                    ...currentBlock,
+                    ...updates,
+                    type: "paragraph" as const
+                } as Block;
+                break;
+            case "heading":
+                newBlock = {
+                    ...currentBlock,
+                    ...updates,
+                    type: "heading" as const
+                } as Block;
+                break;
+            case "image":
+                newBlock = {
+                    ...currentBlock,
+                    ...updates,
+                    type: "image" as const
+                } as Block;
+                break;
+            case "code":
+                newBlock = {
+                    ...currentBlock,
+                    ...updates,
+                    type: "code" as const
+                } as Block;
+                break;
+            case "table":
+                newBlock = {
+                    ...currentBlock,
+                    ...updates,
+                    type: "table" as const
+                } as Block;
+                break;
+            case "video":
+                newBlock = {
+                    ...currentBlock,
+                    ...updates,
+                    type: "video" as const
+                } as Block;
+                break;
+            case "audio":
+                newBlock = {
+                    ...currentBlock,
+                    ...updates,
+                    type: "audio" as const
+                } as Block;
+                break;
+            case "markdown":
+                newBlock = {
+                    ...currentBlock,
+                    ...updates,
+                    type: "markdown" as const
+                } as Block;
+                break;
+            default:
+                newBlock = currentBlock;
+        }
+
+        const updatedBlocks = [...blocks];
+        updatedBlocks[blockIndex] = newBlock;
         onBlocksChange(updatedBlocks);
     };
 
@@ -214,7 +276,7 @@ export function BlockEditor({ blocks, onBlocksChange, className = "" }: BlockEdi
     };
 
     // 블록 타입에 따른 에디터 렌더링
-    const renderBlockEditor = (block: BlockUnion) => {
+    const renderBlockEditor = (block: Block) => {
         const isExpanded = expandedBlocks[block.id] !== false;
 
         switch (block.type) {
@@ -555,73 +617,15 @@ export function BlockEditor({ blocks, onBlocksChange, className = "" }: BlockEdi
                         </div>
                     </div>
                 );
-            case "list":
-                return (
-                    <div className="space-y-2">
-                        <div className="flex items-center gap-2 mb-2">
-                            <input
-                                id={`list-ordered-${block.id}`}
-                                type="checkbox"
-                                checked={block.ordered}
-                                onChange={(e) => updateBlock(block.id, { ordered: e.target.checked })}
-                                className="h-4 w-4"
-                            />
-                            <Label htmlFor={`list-ordered-${block.id}`}>순서 있는 목록</Label>
-                        </div>
-                        {block.items.map((item, index) => (
-                            <div key={index} className="flex gap-2">
-                                <Input
-                                    value={item}
-                                    onChange={(e) => {
-                                        const newItems = [...block.items];
-                                        newItems[index] = e.target.value;
-                                        updateBlock(block.id, { items: newItems });
-                                    }}
-                                    placeholder={`항목 ${index + 1}`}
-                                    className="flex-1"
-                                />
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => {
-                                        const newItems = block.items.filter((_, i) => i !== index);
-                                        updateBlock(block.id, { items: newItems });
-                                    }}
-                                >
-                                    <Trash className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        ))}
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                                const newItems = [...block.items, `항목 ${block.items.length + 1}`];
-                                updateBlock(block.id, { items: newItems });
-                            }}
-                            className="w-full"
-                        >
-                            항목 추가
-                        </Button>
-                    </div>
-                );
-            case "quote":
+            case "markdown":
                 return (
                     <div className="space-y-2">
                         <Textarea
                             value={block.content}
                             onChange={(e) => updateBlock(block.id, { content: e.target.value })}
-                            placeholder="인용구를 입력하세요"
+                            placeholder="마크다운 내용을 입력하세요"
                             rows={4}
-                            className="border-l-4 pl-4 border-gray-300"
                         />
-                    </div>
-                );
-            case "divider":
-                return (
-                    <div className="py-2">
-                        <div className="border-t-2 border-gray-200"></div>
                     </div>
                 );
             default:

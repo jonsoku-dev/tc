@@ -215,14 +215,29 @@ export default function EbookDetailPage({ loaderData }: Route.ComponentProps) {
 
         // 본문 페이지 찾기 (일반적으로 2번 페이지가 본문)
         const contentPage = pages.find(page => page.page_number === 2);
-        if (contentPage && contentPage.content) {
-            // JSON 객체에서 content 필드 추출
+        if (contentPage && contentPage.blocks) {
+            // 블록에서 텍스트 콘텐츠 추출
             try {
-                if (typeof contentPage.content === 'string') {
-                    const parsed = JSON.parse(contentPage.content);
-                    return parsed.content || "";
-                } else if (typeof contentPage.content === 'object' && contentPage.content !== null) {
-                    return (contentPage.content as any).content || "";
+                const blocksArray = Array.isArray(contentPage.blocks) ? contentPage.blocks : [];
+
+                // 마크다운 블록 찾기
+                const markdownBlock = blocksArray.find((block: any) => block.type === 'markdown');
+                if (markdownBlock && typeof markdownBlock === 'object' && 'content' in markdownBlock) {
+                    return String(markdownBlock.content) || "";
+                }
+
+                // 문단 블록 찾기
+                const paragraphBlock = blocksArray.find((block: any) => block.type === 'paragraph');
+                if (paragraphBlock && typeof paragraphBlock === 'object' && 'content' in paragraphBlock) {
+                    return String(paragraphBlock.content) || "";
+                }
+
+                // 첫 번째 블록의 콘텐츠 사용 (타입에 따라 다르게 처리)
+                if (blocksArray.length > 0) {
+                    const firstBlock = blocksArray[0];
+                    if (firstBlock && typeof firstBlock === 'object' && 'content' in firstBlock) {
+                        return String(firstBlock.content) || "";
+                    }
                 }
             } catch (error) {
                 console.error("페이지 내용 파싱 중 오류 발생:", error);
@@ -383,11 +398,11 @@ export default function EbookDetailPage({ loaderData }: Route.ComponentProps) {
                                     <TabsTrigger value="source">소스</TabsTrigger>
                                 </TabsList>
                                 <TabsContent value="preview" className="min-h-[500px]">
-                                    <MarkdownRenderer content={ebookContent} />
+                                    <MarkdownRenderer content={String(ebookContent)} />
                                 </TabsContent>
                                 <TabsContent value="source" className="min-h-[500px]">
                                     <pre className="p-4 bg-gray-100 rounded-md overflow-auto">
-                                        {ebookContent}
+                                        {String(ebookContent)}
                                     </pre>
                                 </TabsContent>
                             </Tabs>
