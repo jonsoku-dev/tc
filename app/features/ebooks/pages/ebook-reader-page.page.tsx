@@ -51,6 +51,26 @@ export async function loader({ params }: Route.LoaderArgs) {
             throw new Response("전자책 페이지를 가져오는 중 오류가 발생했습니다.", { status: 500 });
         }
 
+        // 페이지 제목을 기반으로 목차 생성
+        // 저장된 목차가 있으면 사용하고, 없으면 페이지 제목으로 생성
+        let tableOfContents = ebook.table_of_contents;
+
+        // 목차가 없거나 페이지 수와 목차 항목 수가 일치하지 않으면 페이지 제목으로 목차 생성
+        if (!tableOfContents || !Array.isArray(tableOfContents) || tableOfContents.length !== pages?.length) {
+            tableOfContents = pages?.map(page => page.title || `${page.page_number}페이지`) || [];
+
+            // 목차 업데이트 (선택적)
+            try {
+                await supabase
+                    .from('ebooks')
+                    .update({ table_of_contents: tableOfContents })
+                    .eq('ebook_id', ebookId);
+            } catch (updateError) {
+                console.error("목차 업데이트 오류:", updateError);
+                // 업데이트 실패해도 계속 진행
+            }
+        }
+
         // 하이라이트 가져오기
         const { data: highlights, error: highlightsError } = await supabase
             .from('highlights')
@@ -89,24 +109,25 @@ export async function loader({ params }: Route.LoaderArgs) {
         return {
             ebook: {
                 ...ebook,
+                table_of_contents: tableOfContents, // 생성된 목차 사용
                 pages: pages || [],
                 page_count: pages?.length || 0
             },
             highlights: highlights?.map(h => ({
                 id: h.highlight_id,
-                text: h.text || "",
+                text: h.text || "", // null 처리
                 startOffset: h.start_position,
                 endOffset: h.end_position,
-                color: h.color || "#FFEB3B",
+                color: h.color || "#FFEB3B", // 기본 색상 제공
                 note: h.note || undefined,
-                createdAt: new Date(h.created_at || new Date()),
+                createdAt: new Date(h.created_at || new Date()), // Date 객체로 변환
                 pageNumber: h.page_number
             })) || [],
             bookmarks: bookmarks?.map(b => ({
                 id: b.bookmark_id,
-                position: 0,
-                title: b.title || "북마크",
-                createdAt: new Date(b.created_at || new Date()),
+                position: 0, // 북마크 위치 정보가 없으면 0으로 설정
+                title: b.title || "북마크", // 기본 제목 제공
+                createdAt: new Date(b.created_at || new Date()), // Date 객체로 변환
                 pageNumber: b.page_number
             })) || [],
             currentPage: readingProgress?.current_page || 1
@@ -325,14 +346,31 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export function meta({ data }: Route.MetaArgs) {
+    // data가 없는 경우 기본값 제공
+    if (!data || !data.ebook) {
+        return [
+            { title: "전자책 읽기" },
+            { name: "description", content: "전자책을 읽어보세요." },
+        ];
+    }
+
     return [
         { title: `${data.ebook.title} - 읽기` },
-        { name: "description", content: data.ebook.description },
+        { name: "description", content: data.ebook.description || "전자책 설명이 없습니다." },
     ];
 }
 
 // 메인 컴포넌트 래퍼
 export default function EbookReaderPage({ loaderData, actionData }: Route.ComponentProps) {
+    // loaderData가 없거나 ebook이 없는 경우 처리
+    if (!loaderData || !loaderData.ebook) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <p className="text-lg">전자책 정보를 불러오는 중 오류가 발생했습니다.</p>
+            </div>
+        );
+    }
+
     const { ebook, highlights: initialHighlights, bookmarks: initialBookmarks, currentPage } = loaderData;
     const { supabase } = useSupabase();
 
@@ -349,9 +387,9 @@ export default function EbookReaderPage({ loaderData, actionData }: Route.Compon
     return (
         <EbookReaderProvider
             initialPage={currentPage}
-            initialHighlights={initialHighlights}
-            initialBookmarks={initialBookmarks}
-            maxPage={ebook.page_count}
+            initialHighlights={initialHighlights || []}
+            initialBookmarks={initialBookmarks || []}
+            maxPage={ebook.page_count || 0}
         >
             <EbookUIProvider>
                 <EbookReaderContent ebook={ebook} />
@@ -381,9 +419,13 @@ function EbookReaderContent({ ebook }: { ebook: any }) {
     // 사용자 정보 가져오기
     React.useEffect(() => {
         async function getUserId() {
-            const { data } = await supabase.auth.getUser();
-            if (data?.user) {
-                setUserId(data.user.id);
+            try {
+                const { data } = await supabase.auth.getUser();
+                if (data?.user) {
+                    setUserId(data.user.id);
+                }
+            } catch (error) {
+                console.error("사용자 정보 가져오기 오류:", error);
             }
         }
         getUserId();
@@ -391,14 +433,14 @@ function EbookReaderContent({ ebook }: { ebook: any }) {
 
     // 페이지 변경 시 진행 상황 업데이트
     React.useEffect(() => {
-        if (userId && ebook.ebook_id) {
+        if (userId && ebook && ebook.ebook_id) {
             const formData = new FormData();
             formData.append("actionType", "updateProgress");
             formData.append("ebookId", ebook.ebook_id);
             formData.append("userId", userId);
             formData.append("currentPage", currentPage.toString());
-            formData.append("progressPercentage", ((currentPage / ebook.page_count) * 100).toString());
-            formData.append("isCompleted", (currentPage >= ebook.page_count).toString());
+            formData.append("progressPercentage", ((currentPage / (ebook.page_count || 1)) * 100).toString());
+            formData.append("isCompleted", (currentPage >= (ebook.page_count || 0)).toString());
 
             // 진행 상황 업데이트 요청
             fetch(window.location.pathname, {
@@ -408,12 +450,12 @@ function EbookReaderContent({ ebook }: { ebook: any }) {
                 console.error("진행 상황 업데이트 오류:", error);
             });
         }
-    }, [currentPage, ebook.ebook_id, ebook.page_count, userId]);
+    }, [currentPage, ebook?.ebook_id, ebook?.page_count, userId]);
 
     // 북마크 추가 핸들러 오버라이드
     const handleAddBookmark = async (bookmark: Omit<BookmarkItem, "id" | "createdAt">) => {
-        if (!userId) {
-            console.error("사용자 인증이 필요합니다.");
+        if (!userId || !ebook || !ebook.ebook_id) {
+            console.error("사용자 인증이 필요하거나 전자책 정보가 없습니다.");
             return;
         }
 
@@ -466,8 +508,8 @@ function EbookReaderContent({ ebook }: { ebook: any }) {
 
     // 하이라이트 추가 핸들러 오버라이드
     const handleAddHighlight = async (highlight: Omit<Highlight, "id" | "createdAt">) => {
-        if (!userId) {
-            console.error("사용자 인증이 필요합니다.");
+        if (!userId || !ebook || !ebook.ebook_id) {
+            console.error("사용자 인증이 필요하거나 전자책 정보가 없습니다.");
             return;
         }
 
@@ -554,6 +596,15 @@ function EbookReaderContent({ ebook }: { ebook: any }) {
 
     // 디버깅용 로그
     console.log("EbookReaderContent 렌더링:", { currentPage, highlights, bookmarks });
+
+    // ebook이 없는 경우 처리
+    if (!ebook) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <p className="text-lg">전자책 정보를 불러오는 중 오류가 발생했습니다.</p>
+            </div>
+        );
+    }
 
     return (
         <EbookPageViewer

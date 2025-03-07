@@ -111,11 +111,11 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                 return (
                     <div className="my-4">
                         <pre className="bg-gray-100 p-4 rounded-md overflow-auto">
-                            <code className={`language-${codeContent.language}`}>
-                                {codeContent.code}
+                            <code className={`language-${codeContent?.language || 'text'}`}>
+                                {codeContent?.code || ''}
                             </code>
                         </pre>
-                        {codeContent.caption && (
+                        {codeContent?.caption && (
                             <div className="text-center text-sm text-gray-500 mt-2">
                                 {codeContent.caption}
                             </div>
@@ -160,7 +160,7 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                 const mixedContent = page.content as any;
                 return (
                     <div className="my-4">
-                        {mixedContent.blocks.map((block: any, index: number) => (
+                        {mixedContent?.blocks?.map((block: any, index: number) => (
                             <div key={index} className="mb-4">
                                 <PageRenderer
                                     page={{
