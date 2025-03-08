@@ -19,6 +19,7 @@ export function HeadingBlockEditor({
             <div className="flex items-center justify-between">
                 <div className="font-medium">제목</div>
                 <Button
+                    type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => toggleBlockExpand(block.id)}

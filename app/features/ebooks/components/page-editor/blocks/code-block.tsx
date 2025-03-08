@@ -19,6 +19,7 @@ export function CodeBlockEditor({
             <div className="flex items-center justify-between">
                 <div className="font-medium">코드</div>
                 <Button
+                    type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => toggleBlockExpand(block.id)}
@@ -56,6 +57,7 @@ export function CodeBlockEditor({
                             <SelectItem value="xml">XML</SelectItem>
                             <SelectItem value="yaml">YAML</SelectItem>
                             <SelectItem value="markdown">Markdown</SelectItem>
+                            <SelectItem value="plaintext">Plain Text</SelectItem>
                         </SelectContent>
                     </Select>
                     <textarea
@@ -67,7 +69,7 @@ export function CodeBlockEditor({
                     <Input
                         value={codeBlock.caption || ""}
                         onChange={(e) => updateBlock(pageId, block.id, { caption: e.target.value })}
-                        placeholder="코드 설명"
+                        placeholder="코드 설명 (선택사항)"
                     />
                 </div>
             )}

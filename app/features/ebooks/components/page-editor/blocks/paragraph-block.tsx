@@ -18,6 +18,7 @@ export function ParagraphBlockEditor({
             <div className="flex items-center justify-between">
                 <div className="font-medium">문단</div>
                 <Button
+                    type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => toggleBlockExpand(block.id)}

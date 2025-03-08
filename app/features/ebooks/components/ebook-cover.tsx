@@ -55,6 +55,7 @@ export function EbookCover({
                         />
                         <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-md">
                             <Button
+                                type="button"
                                 size="sm"
                                 variant="secondary"
                                 {...getRootProps()}
@@ -65,6 +66,7 @@ export function EbookCover({
                                 <input {...getInputProps()} />
                             </Button>
                             <Button
+                                type="button"
                                 size="sm"
                                 variant="destructive"
                                 onClick={handleRemoveImage}
@@ -79,8 +81,8 @@ export function EbookCover({
                     <div
                         {...getRootProps()}
                         className={`border-2 border-dashed rounded-md p-6 flex flex-col items-center justify-center cursor-pointer transition-colors ${isDragActive
-                                ? "border-primary bg-primary/10"
-                                : "border-gray-300 hover:border-primary/50"
+                            ? "border-primary bg-primary/10"
+                            : "border-gray-300 hover:border-primary/50"
                             } ${className}`}
                     >
                         <input {...getInputProps()} />

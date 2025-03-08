@@ -18,6 +18,7 @@ export function ImageBlockEditor({
             <div className="flex items-center justify-between">
                 <div className="font-medium">이미지</div>
                 <Button
+                    type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => toggleBlockExpand(block.id)}

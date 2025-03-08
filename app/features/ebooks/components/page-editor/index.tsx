@@ -105,6 +105,7 @@ function SortablePage({
                 </div>
                 <div className="flex items-center gap-1">
                     <Button
+                        type="button"
                         variant="ghost"
                         size="sm"
                         onClick={() => togglePageExpand(page.id)}
@@ -113,6 +114,7 @@ function SortablePage({
                     </Button>
                     {editable && (
                         <Button
+                            type="button"
                             variant="ghost"
                             size="sm"
                             onClick={() => removePage(page.id)}
@@ -225,6 +227,7 @@ function SortableBlock({
                 </div>
                 {editable && (
                     <Button
+                        type="button"
                         variant="ghost"
                         size="sm"
                         onClick={() => removeBlock(pageId, block.id)}
@@ -653,6 +656,7 @@ export function PageEditor({
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => togglePageExpand(page.id)}
+                                    type="button"
                                 >
                                     {expandedPageId === page.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                 </Button>
@@ -719,6 +723,7 @@ export function PageEditor({
 
             {/* 페이지 추가 버튼 */}
             <Button
+                type="button"
                 variant="outline"
                 className="mt-4 w-full hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors"
                 onClick={addPage}

@@ -1,114 +1,250 @@
-import { useEffect, useRef } from "react";
-import { Form, useNavigate, redirect } from "react-router";
+import { useEffect, useState, useRef } from "react";
+import { Form, useNavigate, redirect, useActionData } from "react-router";
 import { Button } from "~/common/components/ui/button";
-import { Input } from "~/common/components/ui/input";
-import { Textarea } from "~/common/components/ui/textarea";
-import { Label } from "~/common/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/common/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/common/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/common/components/ui/select";
-import { ArrowLeft, Save } from "lucide-react";
-import { EBOOK_STATUS } from "../constants";
-import { EbookCover } from "../components/ebook-cover";
-import { MarkdownEditor } from "../components/markdown-editor";
-import { PageEditor } from "../components/page-editor";
-import type { PageItem } from "../machines/ebook-form.machine";
+import { ArrowLeft } from "lucide-react";
 import { getServerClient } from "~/server";
 import type { Route } from "./+types/ebook-new-page.page";
-import { createEbookFormMachine } from "../machines/ebook-form.machine";
-import { useMachine } from "@xstate/react";
+import { useForm, FormProvider } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+    FormStep,
+    FORM_STEPS,
+    ebookFormSchema,
+    stepSchemas,
+    basicInfoSchema,
+    metadataSchema,
+    STEP_NAMES
+} from "../schemas/ebook-form.schema";
+import type { EbookFormValues } from "../schemas/ebook-form.schema";
+import { EbookFormStepper } from "../components/ebook-form-stepper";
+import {
+    BasicInfoStep,
+    MetadataStep,
+    PagesStep,
+    SampleContentStep
+} from "../components/ebook-form-steps";
+import { validateFormData, parseFormData } from "~/common/utils/form-utils";
 
-export async function action({ request }: Route.ActionArgs) {
-    const { supabase, headers } = getServerClient(request);
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        return redirect("/auth/login", { headers });
-    }
-
-    const formData = await request.formData();
-
-    // 기본 정보 추출
-    const title = formData.get("title") as string;
-    const description = formData.get("description") as string;
-    const price = formData.get("price") ? parseFloat(formData.get("price") as string) : null;
-    const status = formData.get("status") as "draft" | "published" | "archived" || "draft";
-
-    // 유효성 검사
-    if (!title || title.trim() === "") {
-        return { error: "제목을 입력해주세요." };
-    }
-
-    // 메타데이터 추출
-    const pageCount = formData.get("pageCount") ? parseInt(formData.get("pageCount") as string, 10) : null;
-    const readingTime = formData.get("readingTime") ? parseInt(formData.get("readingTime") as string, 10) : null;
-    const language = formData.get("language") as string || "ko";
-    const isbn = formData.get("isbn") as string || null;
-    const isFeatured = formData.get("isFeatured") === "on";
-    const publicationDate = formData.get("publicationDate") as string || null;
-
-    // 콘텐츠 추출
-    const sampleContent = formData.get("sampleContent") as string || "";
-    const pages = formData.get("pages") ?
-        JSON.parse(formData.get("pages") as string) :
-        [];
-
-    // 커버 이미지 처리 (실제 구현에서는 스토리지에 업로드)
-    const coverImageUrl = formData.get("coverImageUrl") as string || null;
-
-    // 전자책 데이터 생성
-    const ebookData = {
-        user_id: user.id,
-        title,
-        description,
-        price,
-        ebook_status: status,
-        page_count: pages.length || 0,
-        reading_time: readingTime,
-        language,
-        isbn,
-        is_featured: isFeatured,
-        publication_date: publicationDate,
-        cover_image_url: coverImageUrl,
-        sample_content: sampleContent
+// 액션 데이터 타입 정의
+interface ActionData {
+    fieldErrors?: {
+        form?: string;
+        [key: string]: string | undefined;
     };
+    step?: FormStep | null;
+    success?: boolean;
+    ebookId?: string;
+    errors?: any;
+    defaultValues?: Partial<EbookFormValues>;
+}
 
-    // Supabase에 전자책 정보 저장
-    const { data: ebook, error } = await supabase
-        .from("ebooks")
-        .insert(ebookData)
-        .select()
-        .single();
+export async function action({ request }: Route.ActionArgs): Promise<Response> {
+    try {
+        const { supabase, headers } = getServerClient(request);
+        const { data: { user } } = await supabase.auth.getUser();
 
-    if (error) {
-        console.error("전자책 생성 중 오류가 발생했습니다:", error);
-        return { error: "전자책 생성 중 오류가 발생했습니다." };
-    }
-
-    // 페이지 생성
-    if (ebook && pages.length > 0) {
-        try {
-            const formattedPages = JSON.parse(formData.get("pages") as string).map((page: PageItem) => ({
-                ebook_id: ebook.ebook_id,
-                position: page.position,
-                title: page.title,
-                blocks: page.blocks,
-                page_number: page.position // 페이지 번호와 위치를 동일하게 설정
-            }));
-
-            const { error: pagesError } = await supabase
-                .from("ebook_pages")
-                .insert(formattedPages);
-
-            if (pagesError) {
-                console.error("페이지 생성 중 오류가 발생했습니다:", pagesError);
-            }
-        } catch (pageError) {
-            console.error("페이지 생성 중 오류가 발생했습니다:", pageError);
+        if (!user) {
+            return redirect("/auth/login", { headers });
         }
-    }
 
-    return { success: true, ebookId: ebook?.ebook_id || "" };
+        // 폼 데이터 파싱 및 검증
+        const formData = await request.formData();
+        const formValues = await parseFormData<any>(formData);
+        const resolver = zodResolver(ebookFormSchema);
+        const { errors, data: validData } = await validateFormData<EbookFormValues>(formValues, resolver);
+
+        // 유효성 검사 오류가 있으면 반환
+        if (errors) {
+            // 에러가 발생한 필드에 따라 현재 스텝 설정
+            let currentStep: FormStep | null = null;
+
+            for (const field in errors) {
+                if (field in basicInfoSchema.shape) {
+                    currentStep = FormStep.BASIC_INFO;
+                    break;
+                } else if (field in metadataSchema.shape) {
+                    currentStep = FormStep.METADATA;
+                    break;
+                } else if (field === 'pages') {
+                    currentStep = FormStep.PAGES;
+                    break;
+                } else if (field === 'sampleContent') {
+                    currentStep = FormStep.SAMPLE_CONTENT;
+                    break;
+                }
+            }
+
+            // 에러 메시지 로깅
+            console.error("유효성 검사 오류:", JSON.stringify(errors, null, 2));
+
+            // 필드 에러를 사용자 친화적인 메시지로 변환
+            const fieldErrors: Record<string, string> = {};
+            Object.entries(errors).forEach(([field, error]) => {
+                if (error && typeof error === 'object' && 'message' in error) {
+                    // 오류 메시지를 사용자 친화적으로 변환
+                    let errorMessage = (error as any).message;
+
+                    // 타입 오류 메시지 개선
+                    if ((error as any).type === 'invalid_type') {
+                        if (errorMessage.includes('Expected string, received number')) {
+                            errorMessage = '올바른 형식으로 입력해주세요.';
+                        } else if (errorMessage.includes('Expected boolean, received string')) {
+                            errorMessage = '올바른 형식으로 선택해주세요.';
+                        } else {
+                            errorMessage = '올바른 형식이 아닙니다.';
+                        }
+                    }
+
+                    // 필수 필드 오류 메시지 개선
+                    if ((error as any).type === 'too_small' && field === 'title') {
+                        errorMessage = '제목을 입력해주세요.';
+                    }
+
+                    // 배열 관련 오류 메시지 개선
+                    if (field === 'pages' && (error as any).type === 'too_small') {
+                        errorMessage = '최소 한 개 이상의 페이지를 추가해주세요.';
+                    }
+
+                    fieldErrors[field] = errorMessage;
+                }
+            });
+
+            return new Response(
+                JSON.stringify({
+                    errors,
+                    fieldErrors,
+                    defaultValues: formValues,
+                    step: currentStep
+                }),
+                {
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    status: 400,
+                }
+            );
+        }
+
+        // 전자책 데이터 생성
+        const ebookData = {
+            user_id: user.id,
+            title: validData.title,
+            description: validData.description || "",
+            price: validData.price ? Number(validData.price) : null,
+            ebook_status: validData.status,
+            page_count: validData.pages.length,
+            reading_time: validData.readingTime ? Number(validData.readingTime) : null,
+            language: validData.language,
+            isbn: validData.isbn || null,
+            is_featured: validData.isFeatured,
+            publication_date: validData.publicationDate || null,
+            cover_image_url: validData.coverImageUrl || null,
+            sample_content: validData.sampleContent || ""
+        };
+
+        // Supabase에 전자책 정보 저장
+        const { data: ebook, error } = await supabase
+            .from("ebooks")
+            .insert(ebookData)
+            .select()
+            .single();
+
+        if (error) {
+            console.error("전자책 생성 중 오류가 발생했습니다:", error);
+            return new Response(
+                JSON.stringify({
+                    fieldErrors: {
+                        form: "전자책 생성 중 오류가 발생했습니다."
+                    },
+                    step: FormStep.BASIC_INFO
+                }),
+                {
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    status: 500,
+                }
+            );
+        }
+
+        // 페이지 생성
+        if (ebook && validData.pages.length > 0) {
+            try {
+                const formattedPages = validData.pages.map((page: any) => ({
+                    ebook_id: ebook.ebook_id,
+                    position: page.position,
+                    title: page.title,
+                    blocks: page.blocks,
+                    page_number: page.position // 페이지 번호와 위치를 동일하게 설정
+                }));
+
+                const { error: pagesError } = await supabase
+                    .from("ebook_pages")
+                    .insert(formattedPages);
+
+                if (pagesError) {
+                    console.error("페이지 생성 중 오류가 발생했습니다:", pagesError);
+                    return new Response(
+                        JSON.stringify({
+                            fieldErrors: {
+                                pages: "페이지 생성 중 오류가 발생했습니다."
+                            },
+                            step: FormStep.PAGES,
+                            ebookId: ebook.ebook_id
+                        }),
+                        {
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            status: 500,
+                        }
+                    );
+                }
+            } catch (pageError) {
+                console.error("페이지 생성 중 오류가 발생했습니다:", pageError);
+                return new Response(
+                    JSON.stringify({
+                        fieldErrors: {
+                            pages: "페이지 생성 중 오류가 발생했습니다."
+                        },
+                        step: FormStep.PAGES,
+                        ebookId: ebook.ebook_id
+                    }),
+                    {
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        status: 500,
+                    }
+                );
+            }
+        }
+
+        return new Response(
+            JSON.stringify({ success: true, ebookId: ebook?.ebook_id || "" }),
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                status: 200,
+            }
+        );
+    } catch (error) {
+        console.error("Action 함수 실행 중 오류가 발생했습니다:", error);
+        return new Response(
+            JSON.stringify({
+                fieldErrors: {
+                    form: "서버 오류가 발생했습니다. 다시 시도해주세요."
+                }
+            }),
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                status: 500,
+            }
+        );
+    }
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -118,338 +254,237 @@ export function meta({ data }: Route.MetaArgs) {
     ];
 }
 
-export default function EbookNewPage({ actionData }: Route.ComponentProps) {
+const EbookNewPage = () => {
     const navigate = useNavigate();
-    const actionDataProcessed = useRef(false);
+    const actionData = useActionData<ActionData>();
+    const [currentStep, setCurrentStep] = useState<FormStep>(FormStep.BASIC_INFO);
+    const [isSaving, setIsSaving] = useState(false);
+    const formRef = useRef<HTMLFormElement>(null);
 
-    // 머신 생성
-    const [state, send] = useMachine(createEbookFormMachine, {
-        input: {
-            isEdit: false,
-            initialData: {}
-        }
+    // 폼 설정
+    const methods = useForm<EbookFormValues>({
+        resolver: zodResolver(ebookFormSchema),
+        defaultValues: actionData?.defaultValues || {
+            title: "",
+            description: "",
+            price: 0,
+            status: "draft",
+            isFeatured: false,
+            coverImageUrl: "",
+            readingTime: 0,
+            language: "ko",
+            isbn: "",
+            publicationDate: "",
+            pages: [],
+            sampleContent: ""
+        },
+        mode: "onChange"
     });
 
-    const {
-        title, description, price, status, isFeatured,
-        coverImageFile, coverImagePreview,
-        pageCount, readingTime, language, isbn, publicationDate,
-        pages, sampleContent,
-        activeTab, formError, isSuccess, ebookId, isSaving
-    } = state.context;
+    const { trigger, getValues, formState, setError } = methods;
 
     // 액션 데이터 처리
     useEffect(() => {
-        if (actionData && !actionDataProcessed.current) {
-            if (actionData.error) {
-                send({ type: "SET_FORM_ERROR", error: actionData.error });
-            } else if (actionData.success) {
-                send({ type: "SUBMIT_SUCCESS", ebookId: actionData.ebookId });
+        if (actionData) {
+            // 필드 에러 설정
+            if (actionData.fieldErrors) {
+                Object.entries(actionData.fieldErrors).forEach(([field, message]) => {
+                    if (field !== 'form' && message) {
+                        setError(field as any, {
+                            type: "server",
+                            message
+                        });
+                    }
+                });
             }
-            actionDataProcessed.current = true;
-        }
-    }, [actionData]);
 
-    // 성공 시 리디렉션
-    useEffect(() => {
-        if (isSuccess && ebookId) {
-            navigate(`/ebooks/${ebookId}`);
-        }
-    }, [isSuccess, ebookId, navigate]);
+            // 스텝 이동
+            if (actionData.step) {
+                setCurrentStep(actionData.step);
+            }
 
-    const handleCoverImageChange = (file: File) => {
-        send({ type: "SET_COVER_IMAGE", file });
+            // 성공 시 리다이렉트
+            if (actionData.success && actionData.ebookId) {
+                navigate(`/ebooks/${actionData.ebookId}`);
+            }
+        }
+    }, [actionData, setError, navigate]);
+
+    // 현재 스텝 검증
+    const validateCurrentStep = async () => {
+        const result = await trigger(Object.keys(stepSchemas[currentStep].shape) as any);
+        return result;
     };
 
-    const handlePagesChange = (updatedPages: PageItem[]) => {
-        send({ type: "SET_PAGES", pages: updatedPages });
+    // 다음 스텝으로 이동
+    const handleNext = async () => {
+        const isValid = await validateCurrentStep();
+        if (isValid) {
+            const currentIndex = FORM_STEPS.indexOf(currentStep);
+            if (currentIndex < FORM_STEPS.length - 1) {
+                setCurrentStep(FORM_STEPS[currentIndex + 1]);
+                window.scrollTo(0, 0);
+            }
+        }
     };
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-        if (title.trim() === "") {
-            send({ type: "SET_FORM_ERROR", error: "제목을 입력해주세요." });
-            send({ type: "CHANGE_TAB", tab: "basic" });
-            return;
+    // 이전 스텝으로 이동
+    const handlePrev = () => {
+        const currentIndex = FORM_STEPS.indexOf(currentStep);
+        if (currentIndex > 0) {
+            setCurrentStep(FORM_STEPS[currentIndex - 1]);
+            window.scrollTo(0, 0);
         }
-        send({ type: "SUBMIT" });
     };
+
+    // 폼 저장
+    const handleSave = async () => {
+        // 모든 스텝 검증
+        let isValid = true;
+        for (const step of FORM_STEPS) {
+            const prevStep = currentStep;
+            setCurrentStep(step);
+            const isStepValid = await validateCurrentStep();
+            if (!isStepValid) {
+                // 유효하지 않은 단계로 이동
+                setCurrentStep(step);
+                isValid = false;
+                break;
+            }
+            // 검증 후 원래 단계로 복원
+            setCurrentStep(prevStep);
+        }
+
+        if (!isValid) return;
+        setIsSaving(true);
+
+        // 폼 제출
+        if (formRef.current) {
+            formRef.current.submit();
+        }
+    };
+
+    // 현재 스텝의 다음 버튼 비활성화 여부
+    const isNextDisabled = () => {
+        switch (currentStep) {
+            case FormStep.BASIC_INFO:
+                // title 필드가 변경되었고 에러가 없는지 확인
+                return !!formState.errors.title;
+            case FormStep.PAGES:
+                // pages 배열이 존재하고 비어있지 않은지 확인
+                const pages = getValues("pages");
+                return !pages || pages.length === 0;
+            default:
+                // 다른 스텝은 항상 다음으로 이동 가능
+                return false;
+        }
+    };
+
+    const isLastStep = currentStep === FORM_STEPS[FORM_STEPS.length - 1];
 
     return (
-        <div className="container mx-auto py-8">
-            <Button
-                variant="ghost"
-                className="mb-6"
-                onClick={() => navigate("/ebooks")}
-            >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                전자책 목록으로 돌아가기
-            </Button>
-
-            <Form method="post" className="space-y-8" id="new-ebook-form" onSubmit={handleSubmit}>
-                {formError && (
-                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                        <strong className="font-bold">오류:</strong>
-                        <span className="block sm:inline"> {formError}</span>
-                    </div>
-                )}
-
-                <Tabs
-                    defaultValue="basic"
-                    value={activeTab}
-                    onValueChange={(tab) => send({ type: "CHANGE_TAB", tab })}
-                    className="w-full"
+        <div className="container py-8">
+            <div className="flex items-center mb-6">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => navigate(-1)}
+                    className="mr-2"
                 >
-                    <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="basic">기본 정보</TabsTrigger>
-                        <TabsTrigger value="metadata">메타데이터</TabsTrigger>
-                        <TabsTrigger value="pages">페이지</TabsTrigger>
-                        <TabsTrigger value="sample">샘플 콘텐츠</TabsTrigger>
-                    </TabsList>
+                    <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <h1 className="text-2xl font-bold">새 전자책 만들기</h1>
+            </div>
 
-                    {/* 기본 정보 탭 */}
-                    <TabsContent value="basic" className="space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-2xl">기본 정보</CardTitle>
-                                <CardDescription>
-                                    새 전자책의 기본 정보를 입력하세요.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="md:col-span-2 space-y-6">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="title">제목</Label>
-                                            <Input
-                                                id="title"
-                                                name="title"
-                                                value={title}
-                                                onChange={(e) => send({ type: "SET_TITLE", value: e.target.value })}
-                                                placeholder="전자책 제목을 입력하세요"
-                                                required
-                                            />
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <Label htmlFor="description">설명</Label>
-                                            <Textarea
-                                                id="description"
-                                                name="description"
-                                                value={description}
-                                                onChange={(e) => send({ type: "SET_DESCRIPTION", value: e.target.value })}
-                                                placeholder="전자책에 대한 간단한 설명을 입력하세요"
-                                                rows={4}
-                                            />
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="price">가격 (원)</Label>
-                                                <Input
-                                                    id="price"
-                                                    name="price"
-                                                    type="number"
-                                                    value={price}
-                                                    onChange={(e) => send({ type: "SET_PRICE", value: e.target.value })}
-                                                    placeholder="가격을 입력하세요"
-                                                    min="0"
-                                                />
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <Label htmlFor="status">상태</Label>
-                                                <Select
-                                                    name="status"
-                                                    value={status}
-                                                    onValueChange={(value) => send({ type: "SET_STATUS", value })}
-                                                >
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="상태 선택" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {EBOOK_STATUS.map((statusOption) => (
-                                                            <SelectItem key={statusOption} value={statusOption}>
-                                                                {statusOption === "published" ? "출판됨" :
-                                                                    statusOption === "draft" ? "초안" : "보관됨"}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center space-x-2">
-                                            <input
-                                                type="checkbox"
-                                                id="is_featured"
-                                                name="is_featured"
-                                                checked={isFeatured}
-                                                onChange={(e) => send({ type: "SET_IS_FEATURED", value: e.target.checked })}
-                                                className="rounded"
-                                            />
-                                            <Label htmlFor="is_featured">추천 eBook으로 표시</Label>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <Label className="block mb-2">표지 이미지</Label>
-                                        <EbookCover
-                                            imageUrl={coverImagePreview || undefined}
-                                            alt={title || "새 eBook"}
-                                            editable={true}
-                                            onImageChange={handleCoverImageChange}
-                                            className="w-full aspect-[2/3]"
-                                        />
-                                        <input
-                                            type="hidden"
-                                            name="cover_image_file"
-                                            value={coverImageFile?.name || ""}
-                                        />
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    {/* 메타데이터 탭 */}
-                    <TabsContent value="metadata" className="space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-2xl">메타데이터</CardTitle>
-                                <CardDescription>
-                                    전자책의 상세 정보를 입력하세요.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="page_count">페이지 수</Label>
-                                        <Input
-                                            id="page_count"
-                                            name="page_count"
-                                            type="number"
-                                            value={pageCount}
-                                            placeholder="페이지 수를 입력하세요"
-                                            min="1"
-                                            readOnly
-                                        />
-                                        <p className="text-xs text-gray-500">페이지 수는 자동으로 계산됩니다.</p>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="reading_time">읽기 시간 (분)</Label>
-                                        <Input
-                                            id="reading_time"
-                                            name="reading_time"
-                                            type="number"
-                                            value={readingTime}
-                                            onChange={(e) => send({ type: "SET_READING_TIME", value: e.target.value })}
-                                            placeholder="예상 읽기 시간을 분 단위로 입력하세요"
-                                            min="1"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="language">언어</Label>
-                                        <Select
-                                            name="language"
-                                            value={language}
-                                            onValueChange={(value) => send({ type: "SET_LANGUAGE", value })}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="언어 선택" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="ko">한국어</SelectItem>
-                                                <SelectItem value="en">영어</SelectItem>
-                                                <SelectItem value="ja">일본어</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="publication_date">출판일</Label>
-                                        <Input
-                                            id="publication_date"
-                                            name="publication_date"
-                                            type="date"
-                                            value={publicationDate}
-                                            onChange={(e) => send({ type: "SET_PUBLICATION_DATE", value: e.target.value })}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2 md:col-span-2">
-                                        <Label htmlFor="isbn">ISBN</Label>
-                                        <Input
-                                            id="isbn"
-                                            name="isbn"
-                                            value={isbn}
-                                            onChange={(e) => send({ type: "SET_ISBN", value: e.target.value })}
-                                            placeholder="ISBN을 입력하세요 (선택사항)"
-                                        />
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    {/* 페이지 탭 */}
-                    <TabsContent value="pages" className="space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-2xl">페이지 관리</CardTitle>
-                                <CardDescription>
-                                    전자책의 페이지를 추가하고 관리하세요.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <PageEditor
-                                    pages={pages}
-                                    editable={true}
-                                    onPagesChange={handlePagesChange}
-                                />
-                                <input
-                                    type="hidden"
-                                    name="pages"
-                                    value={JSON.stringify(pages)}
-                                />
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    {/* 샘플 콘텐츠 탭 */}
-                    <TabsContent value="sample" className="space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-2xl">샘플 콘텐츠 작성</CardTitle>
-                                <CardDescription>
-                                    무료로 제공할 샘플 콘텐츠를 작성하세요.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <MarkdownEditor
-                                    value={sampleContent}
-                                    onChange={(value) => send({ type: "SET_SAMPLE_CONTENT", value })}
-                                    placeholder="마크다운 형식으로 샘플 콘텐츠를 작성하세요"
-                                    minHeight={300}
-                                />
-                                <input
-                                    type="hidden"
-                                    name="sample_content"
-                                    value={sampleContent}
-                                />
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-                </Tabs>
-
-                <div className="flex justify-end">
-                    <Button type="submit" disabled={isSaving}>
-                        {isSaving ? "저장 중..." : "저장하기"}
-                        {!isSaving && <Save className="mr-2 h-4 w-4" />}
-                    </Button>
+            {/* 서버 오류 메시지 표시 */}
+            {actionData?.fieldErrors?.form && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
+                    <p>{actionData.fieldErrors.form}</p>
                 </div>
-            </Form>
+            )}
+
+            <EbookFormStepper
+                currentStep={currentStep}
+                completedSteps={[]}
+                onStepChange={setCurrentStep}
+            />
+
+            <FormProvider {...methods}>
+                <Form
+                    ref={formRef}
+                    method="post"
+                    encType="multipart/form-data"
+                    className="space-y-8 mt-6"
+                >
+                    {/* 기본 정보 스텝 */}
+                    {currentStep === FormStep.BASIC_INFO && (
+                        <BasicInfoStep />
+                    )}
+
+                    {/* 메타데이터 스텝 */}
+                    {currentStep === FormStep.METADATA && (
+                        <MetadataStep />
+                    )}
+
+                    {/* 페이지 스텝 */}
+                    {currentStep === FormStep.PAGES && (
+                        <PagesStep />
+                    )}
+
+                    {/* 샘플 콘텐츠 스텝 */}
+                    {currentStep === FormStep.SAMPLE_CONTENT && (
+                        <SampleContentStep />
+                    )}
+
+                    {/* 폼 데이터 숨겨서 전송 */}
+                    <input type="hidden" name="title" value={getValues("title")} />
+                    <input type="hidden" name="description" value={getValues("description") || ""} />
+                    <input type="hidden" name="price" value={getValues("price") || 0} />
+                    <input type="hidden" name="status" value={getValues("status")} />
+                    <input type="hidden" name="isFeatured" value={getValues("isFeatured") ? "on" : "off"} />
+                    <input type="hidden" name="coverImageUrl" value={getValues("coverImageUrl") || ""} />
+                    <input type="hidden" name="readingTime" value={getValues("readingTime") || 0} />
+                    <input type="hidden" name="language" value={getValues("language")} />
+                    <input type="hidden" name="isbn" value={getValues("isbn") || ""} />
+                    <input type="hidden" name="publicationDate" value={getValues("publicationDate") || ""} />
+                    <input type="hidden" name="pages" value={JSON.stringify(getValues("pages"))} />
+                    <input type="hidden" name="sampleContent" value={getValues("sampleContent") || ""} />
+
+                    <div className="flex justify-between mt-6">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handlePrev}
+                            disabled={currentStep === FORM_STEPS[0]}
+                        >
+                            이전
+                        </Button>
+
+                        <div className="flex gap-2">
+                            {isLastStep ? (
+                                <Button
+                                    type="button"
+                                    disabled={isSaving}
+                                    onClick={handleSave}
+                                >
+                                    {isSaving ? "저장 중..." : "저장하기"}
+                                </Button>
+                            ) : (
+                                <Button
+                                    type="button"
+                                    onClick={handleNext}
+                                    disabled={isNextDisabled()}
+                                    className="flex items-center"
+                                >
+                                    다음
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </Form>
+            </FormProvider>
         </div>
     );
-} 
+};
+
+export default EbookNewPage; 

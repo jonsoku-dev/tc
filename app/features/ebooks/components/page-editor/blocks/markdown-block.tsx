@@ -18,6 +18,7 @@ export function MarkdownBlockEditor({
             <div className="flex items-center justify-between">
                 <div className="font-medium">마크다운</div>
                 <Button
+                    type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => toggleBlockExpand(block.id)}
