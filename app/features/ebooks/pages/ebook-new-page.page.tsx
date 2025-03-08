@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Form, useNavigate, redirect } from "react-router";
 import { Button } from "~/common/components/ui/button";
 import { Input } from "~/common/components/ui/input";
@@ -12,10 +12,10 @@ import { EBOOK_STATUS } from "../constants";
 import { EbookCover } from "../components/ebook-cover";
 import { MarkdownEditor } from "../components/markdown-editor";
 import { PageEditor } from "../components/page-editor";
-import type { PageItem } from "../components/page-editor";
+import type { PageItem } from "../machines/ebook-form.machine";
 import { getServerClient } from "~/server";
 import type { Route } from "./+types/ebook-new-page.page";
-import { ebookFormMachine } from "../machines/ebook-form.machine";
+import { createEbookFormMachine } from "../machines/ebook-form.machine";
 import { useMachine } from "@xstate/react";
 
 export async function action({ request }: Route.ActionArgs) {
@@ -88,7 +88,7 @@ export async function action({ request }: Route.ActionArgs) {
     // 페이지 생성
     if (ebook && pages.length > 0) {
         try {
-            const formattedPages = JSON.parse(formData.get("pages") as string).map((page: any) => ({
+            const formattedPages = JSON.parse(formData.get("pages") as string).map((page: PageItem) => ({
                 ebook_id: ebook.ebook_id,
                 position: page.position,
                 title: page.title,
@@ -108,7 +108,7 @@ export async function action({ request }: Route.ActionArgs) {
         }
     }
 
-    return { success: true, ebookId: ebook?.ebook_id };
+    return { success: true, ebookId: ebook?.ebook_id || "" };
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -120,23 +120,35 @@ export function meta({ data }: Route.MetaArgs) {
 
 export default function EbookNewPage({ actionData }: Route.ComponentProps) {
     const navigate = useNavigate();
-    const [state, send] = useMachine(ebookFormMachine);
+    const actionDataProcessed = useRef(false);
+
+    // 머신 생성
+    const [state, send] = useMachine(createEbookFormMachine, {
+        input: {
+            isEdit: false,
+            initialData: {}
+        }
+    });
+
     const {
         title, description, price, status, isFeatured,
         coverImageFile, coverImagePreview,
         pageCount, readingTime, language, isbn, publicationDate,
         pages, sampleContent,
-        activeTab, formError, isSuccess, ebookId
+        activeTab, formError, isSuccess, ebookId, isSaving
     } = state.context;
 
     // 액션 데이터 처리
     useEffect(() => {
-        if (actionData?.error) {
-            send({ type: "SET_FORM_ERROR", error: actionData.error });
-        } else if (actionData?.success) {
-            send({ type: "SUBMIT_SUCCESS", ebookId: actionData.ebookId });
+        if (actionData && !actionDataProcessed.current) {
+            if (actionData.error) {
+                send({ type: "SET_FORM_ERROR", error: actionData.error });
+            } else if (actionData.success) {
+                send({ type: "SUBMIT_SUCCESS", ebookId: actionData.ebookId });
+            }
+            actionDataProcessed.current = true;
         }
-    }, [actionData, send]);
+    }, [actionData]);
 
     // 성공 시 리디렉션
     useEffect(() => {
@@ -154,6 +166,11 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
     };
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        if (title.trim() === "") {
+            send({ type: "SET_FORM_ERROR", error: "제목을 입력해주세요." });
+            send({ type: "CHANGE_TAB", tab: "basic" });
+            return;
+        }
         send({ type: "SUBMIT" });
     };
 
@@ -427,9 +444,9 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                 </Tabs>
 
                 <div className="flex justify-end">
-                    <Button type="submit">
-                        <Save className="mr-2 h-4 w-4" />
-                        저장하기
+                    <Button type="submit" disabled={isSaving}>
+                        {isSaving ? "저장 중..." : "저장하기"}
+                        {!isSaving && <Save className="mr-2 h-4 w-4" />}
                     </Button>
                 </div>
             </Form>
