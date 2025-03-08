@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { Form, useNavigate, redirect } from "react-router";
 import { Button } from "~/common/components/ui/button";
 import { Input } from "~/common/components/ui/input";
@@ -15,6 +15,8 @@ import { PageEditor } from "../components/page-editor";
 import type { PageItem } from "../components/page-editor";
 import { getServerClient } from "~/server";
 import type { Route } from "./+types/ebook-new-page.page";
+import { ebookFormMachine } from "../machines/ebook-form.machine";
+import { useMachine } from "@xstate/react";
 
 export async function action({ request }: Route.ActionArgs) {
     const { supabase, headers } = getServerClient(request);
@@ -118,53 +120,41 @@ export function meta({ data }: Route.MetaArgs) {
 
 export default function EbookNewPage({ actionData }: Route.ComponentProps) {
     const navigate = useNavigate();
-    const [title, setTitle] = useState("");
-    const [description, setDescription] = useState("");
-    const [price, setPrice] = useState("");
-    const [status, setStatus] = useState<string>("draft");
-    const [sampleContent, setSampleContent] = useState("");
-    const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
-    const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
-    const [pageCount, setPageCount] = useState("");
-    const [readingTime, setReadingTime] = useState("");
-    const [language, setLanguage] = useState<string>("ko");
-    const [isbn, setIsbn] = useState("");
-    const [isFeatured, setIsFeatured] = useState(false);
-    const [publicationDate, setPublicationDate] = useState("");
-    const [pages, setPages] = useState<PageItem[]>([]);
-    const [activeTab, setActiveTab] = useState("basic");
-    const [formError, setFormError] = useState<string | null>(actionData?.error || null);
+    const [state, send] = useMachine(ebookFormMachine);
+    const {
+        title, description, price, status, isFeatured,
+        coverImageFile, coverImagePreview,
+        pageCount, readingTime, language, isbn, publicationDate,
+        pages, sampleContent,
+        activeTab, formError, isSuccess, ebookId
+    } = state.context;
 
-    // 폼 제출 후 리디렉션
-    if (actionData?.success) {
-        navigate(`/ebooks/${actionData.ebookId}`);
-    }
+    // 액션 데이터 처리
+    useEffect(() => {
+        if (actionData?.error) {
+            send({ type: "SET_FORM_ERROR", error: actionData.error });
+        } else if (actionData?.success) {
+            send({ type: "SUBMIT_SUCCESS", ebookId: actionData.ebookId });
+        }
+    }, [actionData, send]);
+
+    // 성공 시 리디렉션
+    useEffect(() => {
+        if (isSuccess && ebookId) {
+            navigate(`/ebooks/${ebookId}`);
+        }
+    }, [isSuccess, ebookId, navigate]);
 
     const handleCoverImageChange = (file: File) => {
-        setCoverImageFile(file);
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            setCoverImagePreview(e.target?.result as string);
-        };
-        reader.readAsDataURL(file);
+        send({ type: "SET_COVER_IMAGE", file });
     };
 
     const handlePagesChange = (updatedPages: PageItem[]) => {
-        setPages(updatedPages);
-        // 페이지 수 자동 업데이트
-        setPageCount(updatedPages.length.toString());
+        send({ type: "SET_PAGES", pages: updatedPages });
     };
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-        // 폼 제출 전 유효성 검사
-        if (!title.trim()) {
-            e.preventDefault();
-            setFormError("제목을 입력해주세요.");
-            setActiveTab("basic");
-            return;
-        }
-
-        setFormError(null);
+        send({ type: "SUBMIT" });
     };
 
     return (
@@ -186,7 +176,12 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                     </div>
                 )}
 
-                <Tabs defaultValue="basic" value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <Tabs
+                    defaultValue="basic"
+                    value={activeTab}
+                    onValueChange={(tab) => send({ type: "CHANGE_TAB", tab })}
+                    className="w-full"
+                >
                     <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="basic">기본 정보</TabsTrigger>
                         <TabsTrigger value="metadata">메타데이터</TabsTrigger>
@@ -212,7 +207,7 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                                                 id="title"
                                                 name="title"
                                                 value={title}
-                                                onChange={(e) => setTitle(e.target.value)}
+                                                onChange={(e) => send({ type: "SET_TITLE", value: e.target.value })}
                                                 placeholder="전자책 제목을 입력하세요"
                                                 required
                                             />
@@ -224,7 +219,7 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                                                 id="description"
                                                 name="description"
                                                 value={description}
-                                                onChange={(e) => setDescription(e.target.value)}
+                                                onChange={(e) => send({ type: "SET_DESCRIPTION", value: e.target.value })}
                                                 placeholder="전자책에 대한 간단한 설명을 입력하세요"
                                                 rows={4}
                                             />
@@ -238,7 +233,7 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                                                     name="price"
                                                     type="number"
                                                     value={price}
-                                                    onChange={(e) => setPrice(e.target.value)}
+                                                    onChange={(e) => send({ type: "SET_PRICE", value: e.target.value })}
                                                     placeholder="가격을 입력하세요"
                                                     min="0"
                                                 />
@@ -246,7 +241,11 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
 
                                             <div className="space-y-2">
                                                 <Label htmlFor="status">상태</Label>
-                                                <Select name="status" value={status} onValueChange={setStatus}>
+                                                <Select
+                                                    name="status"
+                                                    value={status}
+                                                    onValueChange={(value) => send({ type: "SET_STATUS", value })}
+                                                >
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="상태 선택" />
                                                     </SelectTrigger>
@@ -268,7 +267,7 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                                                 id="is_featured"
                                                 name="is_featured"
                                                 checked={isFeatured}
-                                                onChange={(e) => setIsFeatured(e.target.checked)}
+                                                onChange={(e) => send({ type: "SET_IS_FEATURED", value: e.target.checked })}
                                                 className="rounded"
                                             />
                                             <Label htmlFor="is_featured">추천 eBook으로 표시</Label>
@@ -313,7 +312,6 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                                             name="page_count"
                                             type="number"
                                             value={pageCount}
-                                            onChange={(e) => setPageCount(e.target.value)}
                                             placeholder="페이지 수를 입력하세요"
                                             min="1"
                                             readOnly
@@ -328,7 +326,7 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                                             name="reading_time"
                                             type="number"
                                             value={readingTime}
-                                            onChange={(e) => setReadingTime(e.target.value)}
+                                            onChange={(e) => send({ type: "SET_READING_TIME", value: e.target.value })}
                                             placeholder="예상 읽기 시간을 분 단위로 입력하세요"
                                             min="1"
                                         />
@@ -336,7 +334,11 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
 
                                     <div className="space-y-2">
                                         <Label htmlFor="language">언어</Label>
-                                        <Select name="language" value={language} onValueChange={setLanguage}>
+                                        <Select
+                                            name="language"
+                                            value={language}
+                                            onValueChange={(value) => send({ type: "SET_LANGUAGE", value })}
+                                        >
                                             <SelectTrigger>
                                                 <SelectValue placeholder="언어 선택" />
                                             </SelectTrigger>
@@ -355,7 +357,7 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                                             name="publication_date"
                                             type="date"
                                             value={publicationDate}
-                                            onChange={(e) => setPublicationDate(e.target.value)}
+                                            onChange={(e) => send({ type: "SET_PUBLICATION_DATE", value: e.target.value })}
                                         />
                                     </div>
 
@@ -365,7 +367,7 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                                             id="isbn"
                                             name="isbn"
                                             value={isbn}
-                                            onChange={(e) => setIsbn(e.target.value)}
+                                            onChange={(e) => send({ type: "SET_ISBN", value: e.target.value })}
                                             placeholder="ISBN을 입력하세요 (선택사항)"
                                         />
                                     </div>
@@ -410,7 +412,7 @@ export default function EbookNewPage({ actionData }: Route.ComponentProps) {
                             <CardContent>
                                 <MarkdownEditor
                                     value={sampleContent}
-                                    onChange={setSampleContent}
+                                    onChange={(value) => send({ type: "SET_SAMPLE_CONTENT", value })}
                                     placeholder="마크다운 형식으로 샘플 콘텐츠를 작성하세요"
                                     minHeight={300}
                                 />
