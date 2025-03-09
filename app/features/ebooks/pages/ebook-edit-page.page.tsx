@@ -331,7 +331,6 @@ export async function action({ request, params }: Route.ActionArgs) {
         }
 
         console.log("[action] 성공 응답 반환");
-        // 성공 응답 반환
         return redirect(`/ebooks/${ebookId}`);
     } catch (error) {
         console.error("[action] 전자책 업데이트 오류:", error);

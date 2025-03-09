@@ -89,14 +89,12 @@ function ActionDataHandler({
     actionData,
     isEditMode,
     setError,
-    setCurrentStep,
-    navigate
+    setCurrentStep
 }: {
     actionData: any;
     isEditMode: boolean;
     setError: any;
     setCurrentStep: (step: FormStep) => void;
-    navigate: any;
 }) {
     useEffect(() => {
         if (!actionData) return;
@@ -140,15 +138,8 @@ function ActionDataHandler({
                     description: "전자책 정보가 성공적으로 저장되었습니다.",
                 });
 
-                // 새 전자책 생성 후 상세 페이지로 이동
-                if (!isEditMode) {
-                    console.log(`[ActionDataHandler] 새 전자책 페이지로 이동: /ebooks/${actionData.ebookId}`);
-                    navigate(`/ebooks/${actionData.ebookId}`);
-                } else {
-                    // 편집 모드에서는 이전 페이지로 이동
-                    console.log(`[ActionDataHandler] 이전 페이지로 이동`);
-                    navigate(-1);
-                }
+                // 참고: 액션 함수에서 이미 리다이렉트 처리를 하므로 여기서는 불필요
+                // 리다이렉트는 액션 함수에서 처리됨
             }
         } else if (actionData.error) {
             console.log(`[ActionDataHandler] 오류 처리: ${actionData.error}`);
@@ -156,7 +147,7 @@ function ActionDataHandler({
                 description: actionData.error,
             });
         }
-    }, [actionData, setError, navigate, isEditMode, setCurrentStep]);
+    }, [actionData, setError, setCurrentStep]);
 
     return null;
 }
@@ -355,7 +346,6 @@ function EditEbookForm({
     const [isSaving, setIsSaving] = useState(false);
     const { watch, formState, getValues } = methods;
     const formRef = useRef<HTMLFormElement>(null);
-    const navigate = useNavigate();
 
     // 디버깅을 위한 폼 상태 로깅
     useEffect(() => {
@@ -397,16 +387,8 @@ function EditEbookForm({
                     formRef.current.submit();
                     console.log("[EditEbookForm] 폼 제출 완료");
 
-                    // 저장 후 일정 시간 후 이전 페이지로 이동 (폴백 처리)
-                    setTimeout(() => {
-                        if (isSaving) {
-                            console.log("[EditEbookForm] 타임아웃 후 이전 페이지로 이동");
-                            toast("저장 완료", {
-                                description: "전자책 정보가 저장되었습니다. 이전 페이지로 이동합니다.",
-                            });
-                            navigate(-1);
-                        }
-                    }, 3000);
+                    // 참고: 액션 함수에서 이미 리다이렉트 처리를 하므로 여기서는 불필요
+                    // 리다이렉트는 액션 함수에서 처리됨
                 } catch (err) {
                     const errorMessage = err instanceof Error ? err.message : '알 수 없는 오류';
                     console.error("[EditEbookForm] 폼 제출 오류:", errorMessage);
@@ -424,8 +406,11 @@ function EditEbookForm({
             console.log("[EditEbookForm] 폼 유효성 검사 실패");
 
             // 구체적인 오류 필드 로깅
-            Object.entries(formState.errors).forEach(([field, error]) => {
-                console.log(`[EditEbookForm] 필드 오류: ${field} - ${error.message}`);
+            Object.entries(formState.errors).forEach(([field, errorObj]) => {
+                const message = errorObj && typeof errorObj === 'object' && 'message' in errorObj
+                    ? (errorObj as any).message
+                    : '알 수 없는 오류';
+                console.log(`[EditEbookForm] 필드 오류: ${field} - ${message}`);
             });
 
             toast("저장 실패", {
@@ -581,7 +566,6 @@ export function EbookForm({ mode, initialData, actionData, onSubmit, title }: Eb
                 isEditMode={isEditMode}
                 setError={setError}
                 setCurrentStep={setCurrentStep}
-                navigate={navigate}
             />
 
             <FormProvider {...methods}>
