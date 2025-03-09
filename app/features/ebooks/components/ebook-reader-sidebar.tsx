@@ -6,6 +6,8 @@ import { useSupabase } from "~/common/hooks/use-supabase";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useInView } from "react-intersection-observer";
+import { Switch } from "~/common/components/ui/switch";
+import { Label } from "~/common/components/ui/label";
 
 interface TocItem {
     id: string;
@@ -233,12 +235,13 @@ function HighlightTab({ ebookId, currentPage, onHighlightClick, onUpdateHighligh
         isFetchingNextPage,
         status
     } = useInfiniteQuery({
-        queryKey: ["highlights", ebookId],
+        queryKey: ["highlights", ebookId, currentPage],
         queryFn: async ({ pageParam = 0 }) => {
             const { data, error, count } = await supabase
                 .from("highlights")
                 .select("*", { count: "exact" })
                 .eq("ebook_id", ebookId)
+                .eq("page_number", currentPage)
                 .order("created_at", { ascending: false })
                 .range(pageParam, pageParam + 9);
 
@@ -265,6 +268,10 @@ function HighlightTab({ ebookId, currentPage, onHighlightClick, onUpdateHighligh
         initialPageParam: 0
     });
 
+    useEffect(() => {
+        queryClient.invalidateQueries({ queryKey: ["highlights", ebookId, currentPage] });
+    }, [currentPage, queryClient, ebookId]);
+
     const deleteHighlightMutation = useMutation({
         mutationFn: async (highlightId: string) => {
             const { error } = await supabase
@@ -276,7 +283,7 @@ function HighlightTab({ ebookId, currentPage, onHighlightClick, onUpdateHighligh
             return highlightId;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["highlights", ebookId] });
+            queryClient.invalidateQueries({ queryKey: ["highlights", ebookId, currentPage] });
         }
     });
 
@@ -291,7 +298,7 @@ function HighlightTab({ ebookId, currentPage, onHighlightClick, onUpdateHighligh
             return { highlightId, note };
         },
         onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ["highlights", ebookId] });
+            queryClient.invalidateQueries({ queryKey: ["highlights", ebookId, currentPage] });
             onUpdateHighlightNote(data.highlightId, data.note);
             setEditingNoteId(null);
         }
@@ -336,10 +343,17 @@ function HighlightTab({ ebookId, currentPage, onHighlightClick, onUpdateHighligh
 
     return (
         <div className="h-full flex flex-col">
+            <div className="mb-2 flex justify-between items-center">
+                <div className="text-sm font-medium">
+                    현재 페이지 하이라이트 ({highlights.length})
+                </div>
+            </div>
             <ScrollArea className="flex-1">
                 <div className="space-y-2 p-1">
                     {highlights.length === 0 ? (
-                        <div className="text-center py-4 text-gray-500">하이라이트가 없습니다.</div>
+                        <div className="text-center py-4 text-gray-500">
+                            {currentPage}페이지에 하이라이트가 없습니다.
+                        </div>
                     ) : (
                         <>
                             {highlights.map((highlight) => (
