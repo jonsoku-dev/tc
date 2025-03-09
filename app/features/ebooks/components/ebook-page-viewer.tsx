@@ -108,27 +108,28 @@ export function EbookPageViewer({
     }));
 
     // 텍스트 선택 처리
-    const handleTextSelect = ({ text, startOffset, endOffset, pageNumber, blockId, blockType }: {
+    const handleTextSelect = ({ text, startOffset, endOffset, pageNumber, blockId, blockType, color }: {
         text: string;
         startOffset: number;
         endOffset: number;
         pageNumber: number;
         blockId?: string | null;
         blockType?: string | null;
+        color?: string;
     }) => {
-        if (!onAddHighlight) return;
+        if (!onAddHighlight || !text.trim()) return;
 
-        const newHighlight = {
+        // TextSelectionMenu에서 전달받은 하이라이트 정보를 그대로 onAddHighlight에 전달
+        // 이 함수는 TextSelectionMenu에서 색상 선택 버튼을 클릭했을 때 호출됨
+        onAddHighlight({
             text,
             startOffset,
             endOffset,
-            color: "#FFEB3B", // 기본 색상
+            color: color || "#FFEB3B", // 색상은 TextSelectionMenu에서 선택한 값
             pageNumber,
             blockId: blockId || undefined,
             blockType: blockType || undefined,
-        };
-
-        onAddHighlight(newHighlight);
+        });
     };
 
     // 북마크 추가

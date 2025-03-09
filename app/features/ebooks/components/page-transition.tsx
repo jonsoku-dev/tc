@@ -5,7 +5,7 @@ interface PageTransitionProps {
     pages: EbookPage[];
     currentPage: number;
     highlights: Highlight[];
-    onTextSelect?: (selection: { text: string; startOffset: number; endOffset: number; pageNumber: number }) => void;
+    onTextSelect?: (selection: { text: string; startOffset: number; endOffset: number; pageNumber: number; blockId: string | null; blockType: string | null; color?: string }) => void;
     className?: string;
 }
 
