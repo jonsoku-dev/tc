@@ -30,6 +30,19 @@ interface EbookPageViewerProps {
     sidebarOpen?: boolean;
     fontSize?: number;
     lineHeight?: number;
+    fontFamily?: string;
+    theme?: 'light' | 'dark' | 'sepia';
+    searchQuery?: string;
+    searchResults?: Array<{
+        pageNumber: number;
+        text: string;
+        startOffset: number;
+        endOffset: number;
+        blockId?: string;
+        blockType?: string;
+    }>;
+    currentSearchIndex?: number;
+    hasActiveSearch?: boolean;
     activeItemId?: string | null;
     // UI 이벤트 핸들러 (옵션)
     onToggleSidebar?: () => void;
@@ -37,6 +50,12 @@ interface EbookPageViewerProps {
     onDecreaseFontSize?: () => void;
     onIncreaseLineHeight?: () => void;
     onDecreaseLineHeight?: () => void;
+    onSetFontFamily?: (fontFamily: string) => void;
+    onSetTheme?: (theme: 'light' | 'dark' | 'sepia') => void;
+    onSearch?: (query: string) => void;
+    onNextSearchResult?: () => void;
+    onPrevSearchResult?: () => void;
+    onClearSearch?: () => void;
 }
 
 // 사이드바 컴포넌트에 전달할 props 타입 정의
@@ -90,12 +109,24 @@ export function EbookPageViewer({
     sidebarOpen = true,
     fontSize = 16,
     lineHeight = 1.6,
+    fontFamily = "Noto Sans KR, sans-serif",
+    theme = "light",
+    searchQuery = "",
+    searchResults = [],
+    currentSearchIndex = 0,
+    hasActiveSearch = false,
     activeItemId = null,
     onToggleSidebar = () => { },
     onIncreaseFontSize = () => { },
     onDecreaseFontSize = () => { },
     onIncreaseLineHeight = () => { },
     onDecreaseLineHeight = () => { },
+    onSetFontFamily = () => { },
+    onSetTheme = () => { },
+    onSearch = () => { },
+    onNextSearchResult = () => { },
+    onPrevSearchResult = () => { },
+    onClearSearch = () => { },
 }: EbookPageViewerProps) {
     // 쿼리 클라이언트
     const queryClient = useQueryClient();
@@ -257,8 +288,30 @@ export function EbookPageViewer({
         };
     }, [onNextPage, onPrevPage]);
 
+    // 검색 기능 처리
+    const handleSearch = (query: string) => {
+        console.log("EbookPageViewer 검색 요청:", query);
+        if (!query.trim()) {
+            onClearSearch();
+            return;
+        }
+        onSearch(query);
+    };
+
+    // 테마에 따른 스타일 설정
+    const getThemeStyles = () => {
+        switch (theme) {
+            case 'dark':
+                return 'bg-gray-900 text-white';
+            case 'sepia':
+                return 'bg-amber-50 text-gray-900';
+            default:
+                return 'bg-white text-gray-900';
+        }
+    };
+
     return (
-        <div className={`flex h-screen overflow-hidden bg-white ${className}`}>
+        <div className={`flex h-screen overflow-hidden ${getThemeStyles()} ${className}`}>
             {/* 사이드바 */}
             {sidebarOpen && (
                 <EbookReaderSidebar
@@ -271,36 +324,55 @@ export function EbookPageViewer({
                     onBookmarkClick={handleBookmarkClick}
                     onHighlightClick={handleHighlightClick}
                     onUpdateHighlightNote={onUpdateHighlightNote}
+                    theme={theme}
                 />
             )}
 
             {/* 메인 콘텐츠 */}
             <div className="flex-1 flex flex-col h-full overflow-hidden relative">
                 {/* 상단 툴바 */}
-                <div className="flex-shrink-0 sticky top-0 left-0 right-0 z-10">
+                <div className={`flex-shrink-0 sticky top-0 left-0 right-0 z-10 ${getThemeStyles()}`}>
                     <EbookReaderToolbar
                         title={ebook.title}
                         currentPage={currentPage}
                         totalPages={ebook.page_count}
                         fontSize={fontSize}
                         lineHeight={lineHeight}
+                        fontFamily={fontFamily}
+                        theme={theme}
                         ebookId={ebook.ebook_id}
                         onToggleSidebar={onToggleSidebar}
                         onIncreaseFontSize={onIncreaseFontSize}
                         onDecreaseFontSize={onDecreaseFontSize}
                         onIncreaseLineHeight={onIncreaseLineHeight}
                         onDecreaseLineHeight={onDecreaseLineHeight}
+                        onSetFontFamily={onSetFontFamily}
+                        onSetTheme={onSetTheme}
                         onGoBack={onGoBack}
                         isCurrentPageBookmarked={isCurrentPageBookmarked}
                         currentPageBookmarkId={currentPageBookmark?.id || ""}
+                        searchQuery={searchQuery}
+                        onSearch={handleSearch}
+                        onNextSearchResult={onNextSearchResult}
+                        onPrevSearchResult={onPrevSearchResult}
+                        onClearSearch={onClearSearch}
+                        searchResultsCount={searchResults.length}
+                        currentSearchIndex={currentSearchIndex}
+                        searchResults={searchResults}
+                        hasActiveSearch={hasActiveSearch}
+                        onJumpToPage={onJumpToPage}
                     />
                 </div>
 
                 {/* 페이지 콘텐츠 */}
-                <div className="flex-1 overflow-auto p-4 pb-32">
+                <div className={`flex-1 overflow-auto p-4 pb-32 ${getThemeStyles()}`}>
                     <div
-                        className="max-w-3xl w-full mx-auto bg-white shadow-lg rounded-lg p-8 min-h-[300px] overflow-auto mb-16"
-                        style={{ fontSize: `${fontSize}px`, lineHeight: lineHeight }}
+                        className={`max-w-3xl w-full mx-auto shadow-lg rounded-lg p-8 min-h-[300px] overflow-auto mb-16 ${getThemeStyles()}`}
+                        style={{
+                            fontSize: `${fontSize}px`,
+                            lineHeight: lineHeight,
+                            fontFamily: fontFamily
+                        }}
                     >
                         <PageTransition
                             pages={ebook.pages}
@@ -308,19 +380,22 @@ export function EbookPageViewer({
                             highlights={highlights}
                             onTextSelect={handleTextSelect}
                             onDeleteHighlight={onDeleteHighlight}
+                            searchResults={searchResults}
+                            currentSearchIndex={currentSearchIndex}
                         />
                     </div>
                 </div>
 
                 {/* 하단 네비게이션 */}
                 <div className="fixed bottom-0 left-0 right-0 z-50 h-[60px]">
-                    <div className="shadow-lg border-t bg-white h-full">
+                    <div className={`shadow-lg border-t h-full ${getThemeStyles()}`}>
                         <PageNavigation
                             currentPage={currentPage}
                             totalPages={ebook.page_count}
                             onPrevPage={onPrevPage}
                             onNextPage={onNextPage}
                             onJumpToPage={onJumpToPage}
+                            theme={theme}
                         />
                     </div>
                 </div>

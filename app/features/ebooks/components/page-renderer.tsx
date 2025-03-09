@@ -15,6 +15,23 @@ interface PageRendererProps {
     onTextSelect?: (selection: { text: string; startOffset: number; endOffset: number; pageNumber: number; blockId: string | null; blockType: string | null; color?: string }) => void;
     onDeleteHighlight?: (highlightId: string) => void;
     className?: string;
+    searchResults?: Array<{
+        pageNumber: number;
+        text: string;
+        startOffset: number;
+        endOffset: number;
+        blockId?: string;
+        blockType?: string;
+    }>;
+    activeSearchResult?: {
+        pageNumber: number;
+        text: string;
+        startOffset: number;
+        endOffset: number;
+        blockId?: string;
+        blockType?: string;
+    } | null;
+    currentSearchIndex?: number;
 }
 
 // 하이라이트 컴포넌트
@@ -110,7 +127,85 @@ function HighlightedText({ text, highlight, onDelete }: HighlightedTextProps) {
     );
 }
 
-export function PageRenderer({ page, highlights = [], onTextSelect, onDeleteHighlight, className = "" }: PageRendererProps) {
+// 검색 결과 텍스트 컴포넌트
+interface SearchResultTextProps {
+    text: string;
+    isActive: boolean;
+    searchIndex: number;
+    blockId?: string;
+}
+
+function SearchResultText({ text, isActive, searchIndex, blockId }: SearchResultTextProps) {
+    const [highlight, setHighlight] = useState(isActive);
+
+    // 활성화된 검색 결과인 경우 일시적으로 하이라이트 효과 적용
+    useEffect(() => {
+        setHighlight(isActive);
+
+        // 활성화된 경우에만 타이머 설정
+        if (isActive) {
+            // 5초 후에 하이라이트 효과 제거
+            const timer = setTimeout(() => {
+                setHighlight(false);
+            }, 5000);
+
+            return () => clearTimeout(timer);
+        }
+    }, [isActive]);
+
+    // 하이라이트 스타일 정의
+    const highlightStyle = {
+        // 항상 적용되는 스타일
+        display: 'inline-block',
+        position: 'relative' as const,
+        borderRadius: '2px',
+        padding: '0 2px',
+        margin: '0 -2px',
+        transition: 'all 0.3s ease',
+
+        // 활성화 여부에 따른 스타일
+        ...(highlight ? {
+            backgroundColor: 'rgba(0, 123, 255, 0.3)',  // 파란색 배경 (반투명)
+            boxShadow: '0 0 0 2px rgba(0, 123, 255, 0.5)',  // 파란색 테두리
+            color: 'inherit',
+            zIndex: 5,  // 사용자 하이라이트보다 위에 표시
+        } : {
+            // 비활성화 상태에서도 미세한 표시를 남김
+            backgroundColor: 'rgba(0, 123, 255, 0.1)',  // 매우 연한 파란색
+            boxShadow: 'none',
+        })
+    };
+
+    return (
+        <span
+            className={`search-result ${highlight ? 'search-result-active' : ''}`}
+            style={highlightStyle}
+            data-search-index={searchIndex}
+            data-block-id={blockId}
+        >
+            {text}
+            {highlight && (
+                <span
+                    className="absolute -bottom-1 left-0 w-full h-0.5 bg-blue-500 animate-pulse"
+                    style={{
+                        animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                    }}
+                />
+            )}
+        </span>
+    );
+}
+
+export function PageRenderer({
+    page,
+    highlights = [],
+    onTextSelect,
+    onDeleteHighlight,
+    className = "",
+    searchResults = [],
+    activeSearchResult = null,
+    currentSearchIndex = 0
+}: PageRendererProps) {
     const pageRef = useRef<HTMLDivElement>(null);
     const queryClient = useQueryClient();
     const [renderKey, setRenderKey] = useState(0); // 강제 리렌더링을 위한 상태
@@ -232,13 +327,74 @@ export function PageRenderer({ page, highlights = [], onTextSelect, onDeleteHigh
         });
     }, [localHighlights, page.page_number]);
 
+    // 디버깅용 로그
+    console.log("PageRenderer 렌더링:", {
+        pageNumber: page.page_number,
+        searchResultsCount: searchResults.length,
+        activeSearchResult,
+        currentSearchIndex
+    });
+
+    // 검색 결과 처리
+    useEffect(() => {
+        console.log("PageRenderer 검색 결과 변경:", {
+            searchResultsCount: searchResults.length,
+            activeSearchResult,
+            currentSearchIndex
+        });
+    }, [searchResults, activeSearchResult, currentSearchIndex]);
+
     // 하이라이트 적용 함수 - 겹치는 하이라이트 처리 개선
     const applyHighlights = useCallback((content: string, blockHighlights: Highlight[], blockId: string) => {
-        if (!blockHighlights.length) return content;
+        if (!blockHighlights.length && (!searchResults || searchResults.length === 0)) return content;
+
+        console.log("applyHighlights 호출:", {
+            blockId,
+            highlightsCount: blockHighlights.length,
+            searchResultsCount: searchResults.length
+        });
 
         // 모든 위치에 대한 하이라이트 정보를 저장할 배열
         // 각 문자 위치마다 적용될 하이라이트 정보를 저장
         const positionMap: (Highlight | null)[] = new Array(content.length).fill(null);
+
+        // 검색 결과 정보를 저장할 맵
+        const searchResultMap: { start: number; end: number; isActive: boolean; searchIndex: number; blockId?: string }[] = [];
+
+        // 현재 블록에 해당하는 검색 결과 필터링
+        if (searchResults && searchResults.length > 0) {
+            // 검색 결과를 위치 맵에 추가
+            searchResults.forEach((result, idx) => {
+                // 블록 ID가 있는 경우 해당 블록의 검색 결과만 필터링
+                if (result.blockId && result.blockId !== blockId) {
+                    return;
+                }
+
+                if (result.startOffset >= 0 && result.endOffset <= content.length) {
+                    const isActive = activeSearchResult ?
+                        (result.startOffset === activeSearchResult.startOffset &&
+                            result.endOffset === activeSearchResult.endOffset &&
+                            result.pageNumber === activeSearchResult.pageNumber &&
+                            (!result.blockId || result.blockId === activeSearchResult.blockId)) : false;
+
+                    console.log("검색 결과 매핑:", {
+                        idx,
+                        startOffset: result.startOffset,
+                        endOffset: result.endOffset,
+                        blockId: result.blockId,
+                        isActive
+                    });
+
+                    searchResultMap.push({
+                        start: result.startOffset,
+                        end: result.endOffset,
+                        isActive,
+                        searchIndex: idx,
+                        blockId: result.blockId
+                    });
+                }
+            });
+        }
 
         // 하이라이트 정보를 위치 맵에 기록
         // 우선순위: 1) 노트가 있는 하이라이트, 2) 최근에 생성된 하이라이트
@@ -248,107 +404,143 @@ export function PageRenderer({ page, highlights = [], onTextSelect, onDeleteHigh
                 // 또한 startOffset과 endOffset이 유효한 범위인지 확인
                 return (!h.blockId || h.blockId === blockId) &&
                     h.startOffset >= 0 &&
-                    h.endOffset <= content.length &&
-                    h.startOffset < h.endOffset;
+                    h.endOffset <= content.length;
             })
             .sort((a, b) => {
                 // 노트가 있는 하이라이트 우선
                 if (a.note && !b.note) return -1;
                 if (!a.note && b.note) return 1;
-                // 최근 생성된 하이라이트 우선
-                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                // 최근에 생성된 하이라이트 우선
+                return b.createdAt.getTime() - a.createdAt.getTime();
             });
 
-        // 각 하이라이트를 위치 맵에 기록
-        for (const highlight of sortedHighlights) {
-            try {
-                const start = Math.max(0, highlight.startOffset);
-                const end = Math.min(content.length, highlight.endOffset);
-
-                // 유효한 범위인지 다시 한번 확인
-                if (start < end && start >= 0 && end <= content.length) {
-                    // 이 범위에 이미 하이라이트가 있는지 확인
-                    let hasExistingHighlight = false;
-                    for (let i = start; i < end; i++) {
-                        if (positionMap[i] !== null) {
-                            hasExistingHighlight = true;
-                            break;
-                        }
-                    }
-
-                    // 겹치는 하이라이트가 없는 경우에만 적용
-                    if (!hasExistingHighlight) {
-                        for (let i = start; i < end; i++) {
-                            positionMap[i] = highlight;
-                        }
-                    } else {
-                        console.log(`겹치는 하이라이트가 있어 건너뜁니다: ${highlight.id}`);
-                    }
+        // 하이라이트 정보를 위치 맵에 기록
+        sortedHighlights.forEach(highlight => {
+            for (let i = highlight.startOffset; i < highlight.endOffset; i++) {
+                if (i < positionMap.length) {
+                    positionMap[i] = highlight;
                 }
-            } catch (error) {
-                console.error("하이라이트 적용 중 오류 발생:", error, highlight);
-                // 오류가 발생해도 계속 진행
-                continue;
             }
-        }
+        });
 
-        // 위치 맵을 기반으로 결과 생성
-        let result = [];
+        // 위치 맵을 기반으로 하이라이트된 텍스트 생성
+        const segments: React.ReactNode[] = [];
         let currentHighlight: Highlight | null = null;
         let currentText = '';
-        let i = 0;
+        let inSearchResult = false;
+        let currentSearchResult: { start: number; end: number; isActive: boolean; searchIndex: number; blockId?: string } | null = null;
+        let segmentKey = 0;
 
-        while (i < content.length) {
-            const highlightAtPosition = positionMap[i];
+        for (let i = 0; i < content.length; i++) {
+            // 검색 결과 시작 확인
+            const searchResultStart = searchResultMap.find(sr => sr.start === i);
+            if (searchResultStart && !inSearchResult) {
+                console.log("검색 결과 시작:", i, searchResultStart);
 
-            // 하이라이트가 변경되었거나 끝났을 때
-            if (highlightAtPosition !== currentHighlight) {
-                // 이전 텍스트 처리
-                if (currentText) {
-                    if (currentHighlight) {
-                        // 하이라이트된 텍스트 추가
-                        result.push(
-                            <HighlightedText
-                                key={`${currentHighlight.id}-${i - currentText.length}`}
-                                text={currentText}
-                                highlight={currentHighlight}
-                                onDelete={handleDeleteHighlight}
-                            />
-                        );
-                    } else {
-                        // 일반 텍스트 추가
-                        result.push(currentText);
-                    }
+                // 현재 하이라이트 텍스트가 있으면 먼저 처리
+                if (currentText && currentHighlight) {
+                    segments.push(
+                        <HighlightedText
+                            key={`highlight-${segmentKey++}`}
+                            text={currentText}
+                            highlight={currentHighlight}
+                            onDelete={handleDeleteHighlight}
+                        />
+                    );
+                    currentText = '';
+                } else if (currentText) {
+                    segments.push(currentText);
                     currentText = '';
                 }
 
-                // 현재 하이라이트 업데이트
-                currentHighlight = highlightAtPosition;
+                inSearchResult = true;
+                currentSearchResult = searchResultStart;
             }
 
-            // 현재 문자 추가
-            currentText += content[i];
-            i++;
+            // 현재 위치의 하이라이트 확인
+            const highlight = positionMap[i];
+
+            // 하이라이트 변경 확인
+            if (highlight !== currentHighlight) {
+                // 현재 검색 결과 내부에 있는 경우
+                if (inSearchResult) {
+                    currentText += content[i];
+                }
+                // 검색 결과가 아닌 경우 일반 하이라이트 처리
+                else {
+                    // 이전 하이라이트 텍스트 처리
+                    if (currentText) {
+                        if (currentHighlight) {
+                            segments.push(
+                                <HighlightedText
+                                    key={`highlight-${segmentKey++}`}
+                                    text={currentText}
+                                    highlight={currentHighlight}
+                                    onDelete={handleDeleteHighlight}
+                                />
+                            );
+                        } else {
+                            segments.push(currentText);
+                        }
+                        currentText = '';
+                    }
+
+                    // 새 하이라이트 시작
+                    currentHighlight = highlight;
+                    currentText = content[i];
+                }
+            } else {
+                // 동일한 하이라이트 계속
+                currentText += content[i];
+            }
+
+            // 검색 결과 종료 확인
+            if (inSearchResult && currentSearchResult && i === currentSearchResult.end - 1) {
+                console.log("검색 결과 종료:", i, currentText, currentSearchResult);
+                segments.push(
+                    <SearchResultText
+                        key={`search-${segmentKey++}`}
+                        text={currentText}
+                        isActive={currentSearchResult.isActive}
+                        searchIndex={currentSearchResult.searchIndex}
+                        blockId={blockId}
+                    />
+                );
+                currentText = '';
+                inSearchResult = false;
+                currentSearchResult = null;
+                currentHighlight = positionMap[i + 1]; // 다음 위치의 하이라이트로 설정
+            }
         }
 
         // 마지막 텍스트 처리
         if (currentText) {
-            if (currentHighlight) {
-                result.push(
+            if (inSearchResult && currentSearchResult) {
+                segments.push(
+                    <SearchResultText
+                        key={`search-${segmentKey++}`}
+                        text={currentText}
+                        isActive={currentSearchResult.isActive}
+                        searchIndex={currentSearchResult.searchIndex}
+                        blockId={blockId}
+                    />
+                );
+            } else if (currentHighlight) {
+                segments.push(
                     <HighlightedText
-                        key={`${currentHighlight.id}-${content.length - currentText.length}`}
+                        key={`highlight-${segmentKey++}`}
                         text={currentText}
                         highlight={currentHighlight}
                         onDelete={handleDeleteHighlight}
                     />
                 );
             } else {
-                result.push(currentText);
+                segments.push(currentText);
             }
         }
 
-        return result;
-    }, [handleDeleteHighlight]);
+        return <>{segments}</>;
+    }, [localHighlights, handleDeleteHighlight, searchResults, activeSearchResult, currentSearchIndex]);
 
     // 블록 렌더링
     const renderBlock = useCallback((block: Block) => {

@@ -244,6 +244,7 @@ interface EbookReaderSidebarProps {
     onUpdateHighlightNote: (highlightId: string, note: string) => void;
     onHighlightChange?: () => void;
     className?: string;
+    theme?: 'light' | 'dark' | 'sepia';
 }
 
 export function EbookReaderSidebar({
@@ -258,51 +259,66 @@ export function EbookReaderSidebar({
     onUpdateHighlightNote,
     onHighlightChange,
     className = "",
+    theme = "light",
 }: EbookReaderSidebarProps) {
     const [activeTab, setActiveTab] = useState("toc");
 
+    // 테마에 따른 스타일 설정
+    const getThemeStyles = () => {
+        switch (theme) {
+            case 'dark':
+                return 'bg-gray-900 text-white border-gray-700';
+            case 'sepia':
+                return 'bg-amber-50 text-gray-900 border-amber-200';
+            default:
+                return 'bg-white text-gray-900 border-gray-200';
+        }
+    };
+
     return (
-        <div className={`w-80 border-r flex flex-col h-full ${className}`}>
-            <div className="p-4 border-b flex flex-col h-full">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="font-bold truncate">{title}</h2>
-                </div>
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1">
-                    <TabsList className="grid grid-cols-3 w-full">
-                        <TabsTrigger value="toc">목차</TabsTrigger>
-                        <TabsTrigger value="bookmarks">북마크</TabsTrigger>
-                        <TabsTrigger value="highlights">하이라이트</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="toc" className="mt-4 flex-1 overflow-hidden">
-                        <TocTab
-                            tocItems={tocItems}
-                            currentPage={currentPage}
-                            activeItemId={activeItemId}
-                            onTocItemClick={onTocItemClick}
-                        />
-                    </TabsContent>
-                    <TabsContent value="bookmarks" className="mt-4 flex-1 overflow-hidden">
-                        <BookmarkTab
-                            ebookId={ebookId}
-                            currentPage={currentPage}
-                            onBookmarkClick={onBookmarkClick}
-                        />
-                    </TabsContent>
-                    <TabsContent value="highlights" className="mt-4 flex-1 overflow-hidden">
-                        <HighlightTab
-                            ebookId={ebookId}
-                            currentPage={currentPage}
-                            onHighlightClick={onHighlightClick}
-                            onUpdateHighlightNote={(highlightId, note) => {
-                                onUpdateHighlightNote(highlightId, note);
-                                if (onHighlightChange) {
-                                    onHighlightChange();
-                                }
-                            }}
-                        />
-                    </TabsContent>
-                </Tabs>
+        <div className={`w-80 h-full border-r overflow-hidden flex flex-col ${getThemeStyles()} ${className}`}>
+            <div className="flex items-center justify-between p-4 border-b">
+                <h2 className="text-lg font-semibold truncate">{title}</h2>
             </div>
+
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+                <TabsList className="grid grid-cols-3 mx-4 mt-2">
+                    <TabsTrigger value="toc">목차</TabsTrigger>
+                    <TabsTrigger value="bookmarks">북마크</TabsTrigger>
+                    <TabsTrigger value="highlights">하이라이트</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="toc" className="flex-1 overflow-hidden">
+                    <TocTab
+                        tocItems={tocItems}
+                        currentPage={currentPage}
+                        activeItemId={activeItemId}
+                        onTocItemClick={onTocItemClick}
+                    />
+                </TabsContent>
+
+                <TabsContent value="bookmarks" className="flex-1 overflow-hidden">
+                    <BookmarkTab
+                        ebookId={ebookId}
+                        currentPage={currentPage}
+                        onBookmarkClick={onBookmarkClick}
+                    />
+                </TabsContent>
+
+                <TabsContent value="highlights" className="flex-1 overflow-hidden">
+                    <HighlightTab
+                        ebookId={ebookId}
+                        currentPage={currentPage}
+                        onHighlightClick={onHighlightClick}
+                        onUpdateHighlightNote={(highlightId, note) => {
+                            onUpdateHighlightNote(highlightId, note);
+                            if (onHighlightChange) {
+                                onHighlightChange();
+                            }
+                        }}
+                    />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 } 

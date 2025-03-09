@@ -27,6 +27,7 @@ interface PageNavigationProps {
     onNextPage: () => void;
     onJumpToPage?: (pageNumber: number) => void;
     className?: string;
+    theme?: 'light' | 'dark' | 'sepia';
 }
 
 export function PageNavigation({
@@ -36,6 +37,7 @@ export function PageNavigation({
     onNextPage,
     onJumpToPage,
     className = "",
+    theme = "light",
 }: PageNavigationProps) {
     // XState와 연동을 위해 로컬 상태 대신 currentPage를 직접 사용
     const [pageInputValue, setPageInputValue] = useState(currentPage.toString());
@@ -105,11 +107,23 @@ export function PageNavigation({
         }
     };
 
+    // 테마에 따른 스타일 설정
+    const getThemeStyles = () => {
+        switch (theme) {
+            case 'dark':
+                return 'bg-gray-900 text-white border-gray-700';
+            case 'sepia':
+                return 'bg-amber-50 text-gray-900 border-amber-200';
+            default:
+                return 'bg-white text-gray-900 border-gray-200';
+        }
+    };
+
     // 디버깅용 로그
     console.log("PageNavigation 렌더링:", { currentPage, totalPages, sliderValue });
 
     return (
-        <div className={`flex items-center justify-between p-4 bg-white w-full ${className}`}>
+        <div className={`flex items-center justify-between p-4 w-full ${getThemeStyles()} ${className}`}>
             <div className="flex items-center space-x-2">
                 <Button
                     variant="ghost"
@@ -138,7 +152,7 @@ export function PageNavigation({
                         {currentPage} / {totalPages}
                     </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-80">
+                <PopoverContent className={`w-80 ${getThemeStyles()}`}>
                     <div className="space-y-4">
                         <h4 className="font-medium">페이지 이동</h4>
                         <form onSubmit={handlePageInputSubmit} className="flex items-center space-x-2">

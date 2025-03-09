@@ -4,7 +4,7 @@ import { useSupabase } from "~/common/hooks/use-supabase";
 import { getServerClient } from "~/server";
 import { createClient } from "~/supa-client";
 import { EbookPageViewer } from "../components/ebook-page-viewer";
-import type { BookmarkItem, Highlight } from "../components/types";
+import type { BookmarkItem, Highlight, Block, CodeBlock, TableBlock } from "../components/types";
 import { EbookReaderProvider, useEbookReader, useEbookReaderHandlers } from "../machines/ebook-reader.context";
 import { EbookUIProvider, useEbookUI } from "../machines/ebook-ui.context";
 import type { Route } from "./+types/ebook-reader-page.page";
@@ -176,11 +176,25 @@ function EbookReaderContent({ ebook, tableOfContents }: { ebook: any, tableOfCon
         sidebarOpen,
         fontSize,
         lineHeight,
+        fontFamily,
+        theme,
+        searchQuery,
+        searchResults,
+        currentSearchIndex,
+        hasActiveSearch,
         toggleSidebar,
         increaseFontSize,
         decreaseFontSize,
         increaseLineHeight,
-        decreaseLineHeight
+        decreaseLineHeight,
+        setFontFamily,
+        setTheme,
+        setSearchQuery,
+        setSearchResults,
+        nextSearchResult,
+        prevSearchResult,
+        clearSearch,
+        setCurrentSearchIndex
     } = useEbookUI();
 
     // 사용자 정보 가져오기
@@ -197,6 +211,182 @@ function EbookReaderContent({ ebook, tableOfContents }: { ebook: any, tableOfCon
         }
         getUserId();
     }, [supabase]);
+
+    // 검색 기능 처리
+    const handleSearch = React.useCallback(async (query: string) => {
+        if (!query.trim()) {
+            clearSearch();
+            return;
+        }
+
+        console.log("검색 시작:", query);
+        setSearchQuery(query);
+
+        try {
+            // 현재 전자책의 모든 페이지에서 검색
+            const results: Array<{
+                pageNumber: number;
+                text: string;
+                startOffset: number;
+                endOffset: number;
+                blockId?: string;
+                blockType?: string;
+            }> = [];
+
+            // 각 페이지의 블록에서 검색어 찾기
+            for (const page of ebook.pages) {
+                const blocks = page.blocks as Block[] || [];
+
+                // 페이지 번호
+                const pageNumber = page.page_number;
+
+                // 페이지 제목에서 검색
+                if (page.title) {
+                    const title = page.title;
+                    const lowerTitle = title.toLowerCase();
+                    const lowerQuery = query.toLowerCase();
+
+                    let startIndex = 0;
+                    let index;
+
+                    while ((index = lowerTitle.indexOf(lowerQuery, startIndex)) !== -1) {
+                        // 검색 결과 추가 (제목은 특별한 블록으로 처리)
+                        results.push({
+                            pageNumber,
+                            text: `[제목] ${title}`,
+                            startOffset: index,
+                            endOffset: index + query.length,
+                            blockType: 'title'
+                        });
+
+                        // 다음 검색 위치 설정
+                        startIndex = index + query.length;
+                    }
+                }
+
+                // 각 블록에서 검색
+                blocks.forEach(block => {
+                    // 블록 타입에 따라 검색할 텍스트 필드 결정
+                    let content = '';
+
+                    switch (block.type) {
+                        case 'paragraph':
+                        case 'heading':
+                        case 'markdown':
+                            content = (block as any).content || '';
+                            break;
+                        case 'code':
+                            content = (block as CodeBlock).code || '';
+                            break;
+                        case 'image':
+                        case 'video':
+                        case 'audio':
+                            content = (block as any).caption || '';
+                            break;
+                        case 'table':
+                            // 테이블의 경우 헤더와 모든 행을 검색
+                            const tableBlock = block as TableBlock;
+                            content = [
+                                ...(tableBlock.headers || []),
+                                ...(tableBlock.rows || []).flat()
+                            ].join(' ');
+                            break;
+                        default:
+                            content = '';
+                    }
+
+                    // 검색할 내용이 있는 경우만 검색
+                    if (content) {
+                        // 검색어 주변 텍스트를 포함하기 위한 컨텍스트 길이
+                        const contextLength = 30;
+
+                        // 대소문자 구분 없이 검색
+                        const lowerContent = content.toLowerCase();
+                        const lowerQuery = query.toLowerCase();
+
+                        let startIndex = 0;
+                        let index;
+
+                        while ((index = lowerContent.indexOf(lowerQuery, startIndex)) !== -1) {
+                            // 검색어 주변 텍스트 추출 (앞뒤 30자)
+                            const contextStart = Math.max(0, index - contextLength);
+                            const contextEnd = Math.min(content.length, index + query.length + contextLength);
+
+                            // 원본 텍스트에서 컨텍스트 추출 (대소문자 유지)
+                            const contextText = content.substring(contextStart, contextEnd);
+
+                            // 검색 결과 추가
+                            results.push({
+                                pageNumber,
+                                text: contextText,
+                                startOffset: index,
+                                endOffset: index + query.length,
+                                blockId: block.id,
+                                blockType: block.type
+                            });
+
+                            // 다음 검색 위치 설정
+                            startIndex = index + query.length;
+                        }
+                    }
+                });
+
+                // 페이지 내용 전체에서도 검색 (blocks가 없거나 빈 경우를 위한 대비책)
+                if (blocks.length === 0 && page.content) {
+                    const content = page.content;
+
+                    // 검색어 주변 텍스트를 포함하기 위한 컨텍스트 길이
+                    const contextLength = 30;
+
+                    // 대소문자 구분 없이 검색
+                    const lowerContent = content.toLowerCase();
+                    const lowerQuery = query.toLowerCase();
+
+                    let startIndex = 0;
+                    let index;
+
+                    while ((index = lowerContent.indexOf(lowerQuery, startIndex)) !== -1) {
+                        // 검색어 주변 텍스트 추출 (앞뒤 30자)
+                        const contextStart = Math.max(0, index - contextLength);
+                        const contextEnd = Math.min(content.length, index + query.length + contextLength);
+
+                        // 원본 텍스트에서 컨텍스트 추출 (대소문자 유지)
+                        const contextText = content.substring(contextStart, contextEnd);
+
+                        // 검색 결과 추가
+                        results.push({
+                            pageNumber,
+                            text: contextText,
+                            startOffset: index,
+                            endOffset: index + query.length
+                        });
+
+                        // 다음 검색 위치 설정
+                        startIndex = index + query.length;
+                    }
+                }
+            }
+
+            console.log(`검색 결과: ${results.length}개 항목 발견`, results);
+
+            // 검색 결과 설정
+            setSearchResults(results);
+
+            // 검색 결과가 있으면 첫 번째 결과로 이동
+            if (results.length > 0) {
+                // 첫 번째 검색 결과의 페이지로 이동
+                handlers.handleJumpToPage(results[0].pageNumber);
+
+                // 현재 검색 인덱스 초기화
+                setTimeout(() => {
+                    // 첫 번째 검색 결과를 활성화
+                    setCurrentSearchIndex(0);
+                }, 500);
+            }
+        } catch (error) {
+            console.error("검색 중 오류 발생:", error);
+        }
+    }, [ebook.pages, setSearchQuery, setSearchResults, setCurrentSearchIndex, clearSearch, handlers]);
 
     // 페이지 변경 시 진행 상황 업데이트 mutation
     const updateProgressMutation = useMutation({
@@ -521,12 +711,24 @@ function EbookReaderContent({ ebook, tableOfContents }: { ebook: any, tableOfCon
             sidebarOpen={sidebarOpen}
             fontSize={fontSize}
             lineHeight={lineHeight}
+            fontFamily={fontFamily}
+            theme={theme}
+            searchQuery={searchQuery}
+            searchResults={searchResults}
+            currentSearchIndex={currentSearchIndex}
+            hasActiveSearch={hasActiveSearch}
             activeItemId={activeItemId}
             onToggleSidebar={toggleSidebar}
             onIncreaseFontSize={increaseFontSize}
             onDecreaseFontSize={decreaseFontSize}
             onIncreaseLineHeight={increaseLineHeight}
             onDecreaseLineHeight={decreaseLineHeight}
+            onSetFontFamily={setFontFamily}
+            onSetTheme={setTheme}
+            onSearch={handleSearch}
+            onNextSearchResult={nextSearchResult}
+            onPrevSearchResult={prevSearchResult}
+            onClearSearch={clearSearch}
         />
     );
 } 
