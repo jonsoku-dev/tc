@@ -100,9 +100,9 @@ function AppLayout({ children, isAuthenticated, unreadAlertCount, profile, isLoa
     <div className={cn({
       "px-20 py-28": !pathname.includes("/auth") && !isEbookReader,
       "opacity-50 transition-opacity duration-300 animate-pulse": isLoading,
-      "h-screen overflow-hidden": isEbookReader,
+      "min-h-screen overflow-auto": isEbookReader,
     })}>
-      {isAuthenticated && <Navigation unreadAlertCount={unreadAlertCount} profile={profile} />}
+      {isAuthenticated && !isEbookReader && <Navigation unreadAlertCount={unreadAlertCount} profile={profile} />}
       {children}
     </div>
   );

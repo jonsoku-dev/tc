@@ -8,6 +8,7 @@ import type { BookmarkItem, Highlight } from "../components/types";
 import { EbookReaderProvider, useEbookReader, useEbookReaderHandlers } from "../machines/ebook-reader.context";
 import { EbookUIProvider, useEbookUI } from "../machines/ebook-ui.context";
 import type { Route } from "./+types/ebook-reader-page.page";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 // 로더 함수
 export async function loader({ params, request }: Route.LoaderArgs) {
     const { supabase, headers } = getServerClient(request);
@@ -120,216 +121,6 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     }
 }
 
-// 액션 함수 - 읽기 진행 상황, 북마크, 하이라이트 업데이트
-export async function action({ request }: Route.ActionArgs) {
-    const formData = await request.formData();
-    const actionType = formData.get("actionType") as string;
-
-    // Supabase 클라이언트 생성
-    const supabase = createClient({
-        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
-        supabaseKey: import.meta.env.VITE_SUPABASE_KEY,
-    });
-
-    try {
-        switch (actionType) {
-            case "updateProgress": {
-                const ebookId = formData.get("ebookId") as string;
-                const userId = formData.get("userId") as string;
-                const currentPage = parseInt(formData.get("currentPage") as string, 10);
-                const progressPercentage = parseFloat(formData.get("progressPercentage") as string);
-                const isCompleted = formData.get("isCompleted") === "true";
-
-                if (!ebookId || !userId || isNaN(currentPage)) {
-                    return { success: false, error: "필수 정보가 누락되었습니다." };
-                }
-
-                // 기존 진행 상황 확인
-                const { data: existingProgress } = await supabase
-                    .from('reading_progress')
-                    .select('*')
-                    .eq('ebook_id', ebookId)
-                    .eq('user_id', userId)
-                    .single();
-
-                if (existingProgress) {
-                    // 기존 진행 상황 업데이트
-                    const { error } = await supabase
-                        .from('reading_progress')
-                        .update({
-                            current_page: currentPage,
-                            progress_percentage: progressPercentage,
-                            is_completed: isCompleted,
-                            last_read_at: new Date().toISOString()
-                        })
-                        .eq('progress_id', existingProgress.progress_id);
-
-                    if (error) throw error;
-                } else {
-                    // 새 진행 상황 생성
-                    const { error } = await supabase
-                        .from('reading_progress')
-                        .insert({
-                            ebook_id: ebookId,
-                            user_id: userId,
-                            current_page: currentPage,
-                            progress_percentage: progressPercentage,
-                            is_completed: isCompleted,
-                            last_read_at: new Date().toISOString()
-                        });
-
-                    if (error) throw error;
-                }
-
-                return { success: true };
-            }
-
-            case "addBookmark": {
-                const ebookId = formData.get("ebookId") as string;
-                const userId = formData.get("userId") as string;
-                const pageNumber = parseInt(formData.get("pageNumber") as string, 10);
-                const title = formData.get("title") as string;
-
-                if (!ebookId || !userId || isNaN(pageNumber)) {
-                    return { success: false, error: "필수 정보가 누락되었습니다." };
-                }
-
-                const { data, error } = await supabase
-                    .from('bookmarks')
-                    .insert({
-                        ebook_id: ebookId,
-                        user_id: userId,
-                        page_number: pageNumber,
-                        title: title || `${pageNumber}페이지 북마크`
-                    })
-                    .select();
-
-                if (error) throw error;
-
-                return {
-                    success: true,
-                    bookmark: {
-                        id: data[0].bookmark_id,
-                        position: 0,
-                        title: data[0].title || "북마크",
-                        createdAt: new Date(data[0].created_at || new Date()),
-                        pageNumber: data[0].page_number
-                    }
-                };
-            }
-
-            case "deleteBookmark": {
-                const bookmarkId = formData.get("bookmarkId") as string;
-
-                if (!bookmarkId) {
-                    return { success: false, error: "북마크 ID가 필요합니다." };
-                }
-
-                const { error } = await supabase
-                    .from('bookmarks')
-                    .delete()
-                    .eq('bookmark_id', bookmarkId);
-
-                if (error) throw error;
-
-                return { success: true };
-            }
-
-            case "addHighlight": {
-                const ebookId = formData.get("ebookId") as string;
-                const userId = formData.get("userId") as string;
-                const pageNumber = parseInt(formData.get("pageNumber") as string, 10);
-                const text = formData.get("text") as string;
-                const startPosition = parseInt(formData.get("startPosition") as string, 10);
-                const endPosition = parseInt(formData.get("endPosition") as string, 10);
-                const color = formData.get("color") as string;
-                const note = formData.get("note") as string;
-                const blockId = formData.get("blockId") as string;
-                const blockType = formData.get("blockType") as string;
-
-                if (!ebookId || !userId || isNaN(pageNumber) || !text || isNaN(startPosition) || isNaN(endPosition)) {
-                    return { success: false, error: "필수 정보가 누락되었습니다." };
-                }
-
-                const { data, error } = await supabase
-                    .from('highlights')
-                    .insert({
-                        ebook_id: ebookId,
-                        user_id: userId,
-                        page_number: pageNumber,
-                        text,
-                        start_position: startPosition,
-                        end_position: endPosition,
-                        color: color || "#FFEB3B",
-                        note,
-                        block_id: blockId || null,
-                        block_type: blockType || null
-                    })
-                    .select();
-
-                if (error) throw error;
-
-                return {
-                    success: true,
-                    highlight: {
-                        id: data[0].highlight_id,
-                        text: data[0].text || "",
-                        startOffset: data[0].start_position,
-                        endOffset: data[0].end_position,
-                        color: data[0].color || "#FFEB3B",
-                        note: data[0].note || undefined,
-                        createdAt: new Date(data[0].created_at || new Date()),
-                        pageNumber: data[0].page_number,
-                        blockId: data[0].block_id || undefined,
-                        blockType: data[0].block_type || undefined
-                    }
-                };
-            }
-
-            case "deleteHighlight": {
-                const highlightId = formData.get("highlightId") as string;
-
-                if (!highlightId) {
-                    return { success: false, error: "하이라이트 ID가 필요합니다." };
-                }
-
-                const { error } = await supabase
-                    .from('highlights')
-                    .delete()
-                    .eq('highlight_id', highlightId);
-
-                if (error) throw error;
-
-                return { success: true };
-            }
-
-            case "updateHighlightNote": {
-                const highlightId = formData.get("highlightId") as string;
-                const note = formData.get("note") as string;
-
-                if (!highlightId) {
-                    return { success: false, error: "하이라이트 ID가 필요합니다." };
-                }
-
-                const { error } = await supabase
-                    .from('highlights')
-                    .update({ note })
-                    .eq('highlight_id', highlightId);
-
-                if (error) throw error;
-
-                return { success: true };
-            }
-
-            default:
-                return { success: false, error: "지원하지 않는 액션 타입입니다." };
-        }
-    } catch (error) {
-        console.error("액션 처리 오류:", error);
-        return { success: false, error: "액션 처리 중 오류가 발생했습니다." };
-    }
-}
-
 export function meta({ data }: Route.MetaArgs) {
     // data가 없는 경우 기본값 제공
     if (!data || !data.ebook) {
@@ -359,16 +150,6 @@ export default function EbookReaderPage({ loaderData, actionData }: Route.Compon
     const { ebook, tableOfContents, highlights: initialHighlights, bookmarks: initialBookmarks, currentPage } = loaderData;
     const { supabase } = useSupabase();
 
-    // 액션 데이터 처리
-    React.useEffect(() => {
-        if (actionData?.success) {
-            console.log("액션 성공:", actionData);
-        } else if (actionData?.error) {
-            console.error("액션 오류:", actionData.error);
-            // 여기에 오류 처리 로직 추가
-        }
-    }, [actionData]);
-
     return (
         <EbookReaderProvider
             initialPage={currentPage}
@@ -390,6 +171,7 @@ function EbookReaderContent({ ebook, tableOfContents }: { ebook: any, tableOfCon
     const handlers = useEbookReaderHandlers();
     const { supabase } = useSupabase();
     const [userId, setUserId] = React.useState<string | null>(null);
+    const queryClient = useQueryClient();
     const {
         sidebarOpen,
         fontSize,
@@ -416,190 +198,257 @@ function EbookReaderContent({ ebook, tableOfContents }: { ebook: any, tableOfCon
         getUserId();
     }, [supabase]);
 
+    // 페이지 변경 시 진행 상황 업데이트 mutation
+    const updateProgressMutation = useMutation({
+        mutationFn: async (data: {
+            ebookId: string;
+            userId: string;
+            currentPage: number;
+            progressPercentage: number;
+            isCompleted: boolean;
+        }) => {
+            const { data: existingProgress } = await supabase
+                .from('reading_progress')
+                .select('*')
+                .eq('ebook_id', data.ebookId)
+                .eq('user_id', data.userId)
+                .single();
+
+            if (existingProgress) {
+                // 기존 진행 상황 업데이트
+                const { error } = await supabase
+                    .from('reading_progress')
+                    .update({
+                        current_page: data.currentPage,
+                        progress_percentage: data.progressPercentage,
+                        is_completed: data.isCompleted,
+                        last_read_at: new Date().toISOString()
+                    })
+                    .eq('progress_id', existingProgress.progress_id);
+
+                if (error) throw error;
+                return existingProgress.progress_id;
+            } else {
+                // 새 진행 상황 생성
+                const { data: newProgress, error } = await supabase
+                    .from('reading_progress')
+                    .insert({
+                        ebook_id: data.ebookId,
+                        user_id: data.userId,
+                        current_page: data.currentPage,
+                        progress_percentage: data.progressPercentage,
+                        is_completed: data.isCompleted,
+                        last_read_at: new Date().toISOString()
+                    })
+                    .select()
+                    .single();
+
+                if (error) throw error;
+                return newProgress?.progress_id;
+            }
+        }
+    });
+
     // 페이지 변경 시 진행 상황 업데이트
     React.useEffect(() => {
         if (userId && ebook && ebook.ebook_id) {
-            const formData = new FormData();
-            formData.append("actionType", "updateProgress");
-            formData.append("ebookId", ebook.ebook_id);
-            formData.append("userId", userId);
-            formData.append("currentPage", currentPage.toString());
-            formData.append("progressPercentage", ((currentPage / (ebook.page_count || 1)) * 100).toString());
-            formData.append("isCompleted", (currentPage >= (ebook.page_count || 0)).toString());
-
-            // 진행 상황 업데이트 요청
-            fetch(window.location.pathname, {
-                method: "POST",
-                body: formData
-            }).catch(error => {
-                console.error("진행 상황 업데이트 오류:", error);
+            updateProgressMutation.mutate({
+                ebookId: ebook.ebook_id,
+                userId,
+                currentPage,
+                progressPercentage: (currentPage / (ebook.page_count || 1)) * 100,
+                isCompleted: currentPage >= (ebook.page_count || 0)
             });
         }
     }, [currentPage, ebook?.ebook_id, ebook?.page_count, userId]);
 
-    // 북마크 추가 핸들러 오버라이드
-    const handleAddBookmark = async (bookmark: Omit<BookmarkItem, "id" | "createdAt">) => {
-        if (!userId || !ebook || !ebook.ebook_id) {
-            console.error("사용자 인증이 필요하거나 전자책 정보가 없습니다.");
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append("actionType", "addBookmark");
-        formData.append("ebookId", ebook.ebook_id);
-        formData.append("userId", userId);
-        formData.append("pageNumber", bookmark.pageNumber.toString());
-        formData.append("title", bookmark.title);
-
-        try {
-            const response = await fetch(window.location.pathname, {
-                method: "POST",
-                body: formData
-            });
-
-            const result = await response.json();
-            if (result.success && result.bookmark) {
-                handlers.handleAddBookmark({
-                    title: result.bookmark.title,
-                    pageNumber: result.bookmark.pageNumber,
-                    position: result.bookmark.position
-                });
+    // 북마크 추가 mutation
+    const addBookmarkMutation = useMutation({
+        mutationFn: async (bookmark: Omit<BookmarkItem, "id" | "createdAt">) => {
+            if (!userId || !ebook || !ebook.ebook_id) {
+                throw new Error("사용자 인증이 필요하거나 전자책 정보가 없습니다.");
             }
-        } catch (error) {
+
+            const { data, error } = await supabase
+                .from('bookmarks')
+                .insert({
+                    ebook_id: ebook.ebook_id,
+                    user_id: userId,
+                    page_number: bookmark.pageNumber,
+                    title: bookmark.title
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: (data) => {
+            // 북마크 추가 성공 시 context 업데이트
+            if (data) {
+                handlers.handleAddBookmark({
+                    title: data.title || "",
+                    pageNumber: data.page_number,
+                    position: 0 // 기본값 설정
+                });
+
+                // 북마크 쿼리 무효화
+                queryClient.invalidateQueries({ queryKey: ['bookmarks', ebook.ebook_id] });
+            }
+        },
+        onError: (error) => {
             console.error("북마크 추가 오류:", error);
         }
-    };
+    });
 
-    // 북마크 삭제 핸들러 오버라이드
-    const handleDeleteBookmark = async (id: string) => {
-        const formData = new FormData();
-        formData.append("actionType", "deleteBookmark");
-        formData.append("bookmarkId", id);
+    // 북마크 삭제 mutation
+    const deleteBookmarkMutation = useMutation({
+        mutationFn: async (bookmarkId: string) => {
+            const { error } = await supabase
+                .from('bookmarks')
+                .delete()
+                .eq('bookmark_id', bookmarkId);
 
-        try {
-            const response = await fetch(window.location.pathname, {
-                method: "POST",
-                body: formData
-            });
+            if (error) throw error;
+            return bookmarkId;
+        },
+        onSuccess: (bookmarkId) => {
+            // 북마크 삭제 성공 시 context 업데이트
+            handlers.handleDeleteBookmark(bookmarkId);
 
-            const result = await response.json();
-            if (result.success) {
-                handlers.handleDeleteBookmark(id);
-            }
-        } catch (error) {
+            // 북마크 쿼리 무효화
+            queryClient.invalidateQueries({ queryKey: ['bookmarks', ebook.ebook_id] });
+        },
+        onError: (error) => {
             console.error("북마크 삭제 오류:", error);
         }
-    };
+    });
 
-    // 하이라이트 추가 핸들러 오버라이드
-    const handleAddHighlight = async (highlight: Omit<Highlight, "id" | "createdAt">) => {
-        if (!userId || !ebook || !ebook.ebook_id) {
-            console.error("사용자 인증이 필요하거나 전자책 정보가 없습니다.");
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append("actionType", "addHighlight");
-        formData.append("ebookId", ebook.ebook_id);
-        formData.append("userId", userId);
-        formData.append("pageNumber", highlight.pageNumber.toString());
-        formData.append("text", highlight.text);
-        formData.append("startPosition", highlight.startOffset.toString());
-        formData.append("endPosition", highlight.endOffset.toString());
-        formData.append("color", highlight.color);
-        formData.append("note", highlight.note || "");
-
-        // 블록 정보 추가
-        if (highlight.blockId) {
-            formData.append("blockId", highlight.blockId);
-        }
-        if (highlight.blockType) {
-            formData.append("blockType", highlight.blockType);
-        }
-
-        try {
-            const response = await fetch(window.location.pathname, {
-                method: "POST",
-                body: formData
-            });
-
-            const result = await response.json();
-            if (result.success && result.highlight) {
-                handlers.handleAddHighlight({
-                    text: result.highlight.text,
-                    startOffset: result.highlight.startOffset,
-                    endOffset: result.highlight.endOffset,
-                    color: result.highlight.color,
-                    pageNumber: result.highlight.pageNumber,
-                    note: result.highlight.note,
-                    blockId: result.highlight.blockId,
-                    blockType: result.highlight.blockType
-                });
+    // 하이라이트 추가 mutation
+    const addHighlightMutation = useMutation({
+        mutationFn: async (highlight: Omit<Highlight, "id" | "createdAt">) => {
+            if (!userId || !ebook || !ebook.ebook_id) {
+                throw new Error("사용자 인증이 필요하거나 전자책 정보가 없습니다.");
             }
-        } catch (error) {
+
+            const { data, error } = await supabase
+                .from('highlights')
+                .insert({
+                    ebook_id: ebook.ebook_id,
+                    user_id: userId,
+                    page_number: highlight.pageNumber,
+                    text: highlight.text,
+                    start_position: highlight.startOffset,
+                    end_position: highlight.endOffset,
+                    color: highlight.color,
+                    note: highlight.note || "",
+                    block_id: highlight.blockId || null,
+                    block_type: highlight.blockType || null
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: (data) => {
+            // 하이라이트 추가 성공 시 context 업데이트
+            if (data) {
+                handlers.handleAddHighlight({
+                    text: data.text || "",
+                    startOffset: data.start_position,
+                    endOffset: data.end_position,
+                    color: data.color || "",
+                    pageNumber: data.page_number,
+                    note: data.note || undefined,
+                    blockId: data.block_id || undefined,
+                    blockType: data.block_type || undefined
+                });
+
+                // 하이라이트 쿼리 무효화
+                queryClient.invalidateQueries({ queryKey: ['highlights', ebook.ebook_id] });
+            }
+        },
+        onError: (error) => {
             console.error("하이라이트 추가 오류:", error);
         }
-    };
+    });
 
-    // 하이라이트 삭제 핸들러 오버라이드
-    const handleDeleteHighlight = async (id: string) => {
-        const formData = new FormData();
-        formData.append("actionType", "deleteHighlight");
-        formData.append("highlightId", id);
+    // 하이라이트 삭제 mutation
+    const deleteHighlightMutation = useMutation({
+        mutationFn: async (highlightId: string) => {
+            const { error } = await supabase
+                .from('highlights')
+                .delete()
+                .eq('highlight_id', highlightId);
 
-        try {
-            const response = await fetch(window.location.pathname, {
-                method: "POST",
-                body: formData
-            });
+            if (error) throw error;
+            return highlightId;
+        },
+        onSuccess: (highlightId) => {
+            // 하이라이트 삭제 성공 시 context 업데이트
+            handlers.handleDeleteHighlight(highlightId);
 
-            const result = await response.json();
-            if (result.success) {
-                handlers.handleDeleteHighlight(id);
-            }
-        } catch (error) {
+            // 하이라이트 쿼리 무효화
+            queryClient.invalidateQueries({ queryKey: ['highlights', ebook.ebook_id] });
+        },
+        onError: (error) => {
             console.error("하이라이트 삭제 오류:", error);
         }
-    };
+    });
 
-    // 하이라이트 노트 업데이트 핸들러 오버라이드
-    const handleUpdateHighlightNote = async (id: string, note: string) => {
-        const formData = new FormData();
-        formData.append("actionType", "updateHighlightNote");
-        formData.append("highlightId", id);
-        formData.append("note", note);
+    // 하이라이트 노트 업데이트 mutation
+    const updateHighlightNoteMutation = useMutation({
+        mutationFn: async ({ highlightId, note }: { highlightId: string, note: string }) => {
+            const { data, error } = await supabase
+                .from('highlights')
+                .update({ note })
+                .eq('highlight_id', highlightId)
+                .select()
+                .single();
 
-        try {
-            const response = await fetch(window.location.pathname, {
-                method: "POST",
-                body: formData
-            });
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: (data) => {
+            // 하이라이트 노트 업데이트 성공 시 context 업데이트
+            if (data && data.highlight_id) {
+                handlers.handleUpdateHighlightNote(data.highlight_id, data.note || "");
 
-            const result = await response.json();
-            if (result.success) {
-                handlers.handleUpdateHighlightNote(id, note);
+                // 하이라이트 쿼리 무효화
+                queryClient.invalidateQueries({ queryKey: ['highlights', ebook.ebook_id] });
             }
-        } catch (error) {
+        },
+        onError: (error) => {
             console.error("하이라이트 노트 업데이트 오류:", error);
         }
+    });
+
+    // 핸들러 함수들
+    const handleAddBookmark = (bookmark: Omit<BookmarkItem, "id" | "createdAt">) => {
+        addBookmarkMutation.mutate(bookmark);
+    };
+
+    const handleDeleteBookmark = (id: string) => {
+        deleteBookmarkMutation.mutate(id);
+    };
+
+    const handleAddHighlight = (highlight: Omit<Highlight, "id" | "createdAt">) => {
+        addHighlightMutation.mutate(highlight);
+    };
+
+    const handleDeleteHighlight = (id: string) => {
+        deleteHighlightMutation.mutate(id);
+    };
+
+    const handleUpdateHighlightNote = (id: string, note: string) => {
+        updateHighlightNoteMutation.mutate({ highlightId: id, note });
     };
 
     // 뒤로가기 핸들러
     const handleGoBack = () => {
         navigate(-1);
     };
-
-    // 디버깅용 로그
-    console.log("EbookReaderContent 렌더링:", { currentPage, highlights, bookmarks });
-
-    // ebook이 없는 경우 처리
-    if (!ebook) {
-        return (
-            <div className="flex items-center justify-center h-screen">
-                <p className="text-lg">전자책 정보를 불러오는 중 오류가 발생했습니다.</p>
-            </div>
-        );
-    }
 
     return (
         <EbookPageViewer

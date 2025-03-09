@@ -109,7 +109,7 @@ export function PageNavigation({
     console.log("PageNavigation 렌더링:", { currentPage, totalPages, sliderValue });
 
     return (
-        <div className={`flex items-center justify-between p-4 border-t bg-white w-full z-10 ${className}`}>
+        <div className={`flex items-center justify-between p-4 bg-white w-full ${className}`}>
             <div className="flex items-center space-x-2">
                 <Button
                     variant="ghost"
@@ -117,23 +117,25 @@ export function PageNavigation({
                     onClick={goToFirstPage}
                     disabled={currentPage <= 1}
                     title="처음 페이지"
+                    className="h-9 w-9"
                 >
-                    <ChevronsLeft className="h-4 w-4" />
+                    <ChevronsLeft className="h-5 w-5" />
                 </Button>
                 <Button
                     variant="ghost"
                     onClick={onPrevPage}
                     disabled={currentPage <= 1}
+                    className="h-9"
                 >
-                    <ChevronLeft className="h-4 w-4 mr-2" />
-                    이전 페이지
+                    <ChevronLeft className="h-5 w-5 mr-1" />
+                    이전
                 </Button>
             </div>
 
             <Popover>
                 <PopoverTrigger asChild>
-                    <Button variant="outline" className="min-w-[100px]">
-                        {currentPage} / {totalPages} 페이지
+                    <Button variant="outline" className="min-w-[100px] h-9">
+                        {currentPage} / {totalPages}
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-80">
@@ -174,9 +176,10 @@ export function PageNavigation({
                     variant="ghost"
                     onClick={onNextPage}
                     disabled={currentPage >= totalPages}
+                    className="h-9"
                 >
-                    다음 페이지
-                    <ChevronRight className="h-4 w-4 ml-2" />
+                    다음
+                    <ChevronRight className="h-5 w-5 ml-1" />
                 </Button>
                 <Button
                     variant="ghost"
@@ -184,8 +187,9 @@ export function PageNavigation({
                     onClick={goToLastPage}
                     disabled={currentPage >= totalPages}
                     title="마지막 페이지"
+                    className="h-9 w-9"
                 >
-                    <ChevronsRight className="h-4 w-4" />
+                    <ChevronsRight className="h-5 w-5" />
                 </Button>
             </div>
         </div>

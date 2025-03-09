@@ -1,10 +1,9 @@
 import { useEffect } from "react";
-import type { Ebook, EbookPage, Highlight, BookmarkItem } from "./types";
-import { PageRenderer } from "./page-renderer";
-import { PageNavigation } from "./page-navigation";
-import { EbookReaderToolbar } from "./ebook-reader-toolbar";
 import { EbookReaderSidebar } from "./ebook-reader-sidebar";
+import { EbookReaderToolbar } from "./ebook-reader-toolbar";
+import { PageNavigation } from "./page-navigation";
 import { PageTransition } from "./page-transition";
+import type { BookmarkItem, Ebook, Highlight } from "./types";
 
 interface EbookPageViewerProps {
     ebook: Ebook;
@@ -231,22 +230,19 @@ export function EbookPageViewer({
             {sidebarOpen && (
                 <EbookReaderSidebar
                     title={ebook.title}
+                    ebookId={ebook.ebook_id}
                     tocItems={tocItems}
-                    bookmarks={bookmarks}
-                    highlights={highlights}
                     currentPage={currentPage}
                     activeItemId={activeItemId}
                     onTocItemClick={handleTocItemClick}
                     onBookmarkClick={handleBookmarkClick}
-                    onDeleteBookmark={onDeleteBookmark}
                     onHighlightClick={handleHighlightClick}
-                    onDeleteHighlight={onDeleteHighlight}
                     onUpdateHighlightNote={onUpdateHighlightNote}
                 />
             )}
 
             {/* 메인 콘텐츠 */}
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
+            <div className="flex-1 flex flex-col h-full overflow-hidden relative">
                 {/* 상단 툴바 */}
                 <div className="flex-shrink-0 sticky top-0 left-0 right-0 z-10">
                     <EbookReaderToolbar
@@ -266,9 +262,9 @@ export function EbookPageViewer({
                 </div>
 
                 {/* 페이지 콘텐츠 */}
-                <div className="flex-1 overflow-auto p-4">
+                <div className="flex-1 overflow-auto p-4 pb-32">
                     <div
-                        className="max-w-3xl w-full mx-auto bg-white shadow-lg rounded-lg p-8 min-h-[300px] overflow-auto"
+                        className="max-w-3xl w-full mx-auto bg-white shadow-lg rounded-lg p-8 min-h-[300px] overflow-auto mb-16"
                         style={{ fontSize: `${fontSize}px`, lineHeight: lineHeight }}
                     >
                         <PageTransition
@@ -281,15 +277,16 @@ export function EbookPageViewer({
                 </div>
 
                 {/* 하단 네비게이션 */}
-                <div className="flex-shrink-0 w-full fixed bottom-0 left-0 right-0">
-                    <PageNavigation
-                        currentPage={currentPage}
-                        totalPages={ebook.page_count}
-                        onPrevPage={onPrevPage}
-                        onNextPage={onNextPage}
-                        onJumpToPage={onJumpToPage}
-                        className="shadow-md"
-                    />
+                <div className="fixed bottom-0 left-0 right-0 z-50 h-[60px]">
+                    <div className="shadow-lg border-t bg-white h-full">
+                        <PageNavigation
+                            currentPage={currentPage}
+                            totalPages={ebook.page_count}
+                            onPrevPage={onPrevPage}
+                            onNextPage={onNextPage}
+                            onJumpToPage={onJumpToPage}
+                        />
+                    </div>
                 </div>
             </div>
         </div>
