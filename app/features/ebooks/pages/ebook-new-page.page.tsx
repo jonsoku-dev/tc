@@ -1,29 +1,11 @@
-import { useEffect, useState, useRef } from "react";
-import { Form, useNavigate, redirect, useActionData } from "react-router";
-import { Button } from "~/common/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { redirect } from "react-router";
+import { parseFormData, validateFormData } from "~/common/utils/form-utils";
 import { getServerClient } from "~/server";
-import type { Route } from "./+types/ebook-new-page.page";
-import { useForm, FormProvider } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-    FormStep,
-    FORM_STEPS,
-    ebookFormSchema,
-    stepSchemas,
-    basicInfoSchema,
-    metadataSchema,
-    STEP_NAMES
-} from "../schemas/ebook-form.schema";
+import { EbookForm } from "../components/ebook-form";
 import type { EbookFormValues } from "../schemas/ebook-form.schema";
-import { EbookFormStepper } from "../components/ebook-form-stepper";
-import {
-    BasicInfoStep,
-    MetadataStep,
-    PagesStep,
-    SampleContentStep
-} from "../components/ebook-form-steps";
-import { validateFormData, parseFormData } from "~/common/utils/form-utils";
+import { ebookFormSchema, FormStep } from "../schemas/ebook-form.schema";
+import type { Route } from "./+types/ebook-new-page.page";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 // 액션 데이터 타입 정의
 interface ActionData {
@@ -59,10 +41,10 @@ export async function action({ request }: Route.ActionArgs): Promise<Response> {
             let currentStep: FormStep | null = null;
 
             for (const field in errors) {
-                if (field in basicInfoSchema.shape) {
+                if (field === 'title' || field === 'description' || field === 'status' || field === 'price' || field === 'isFeatured' || field === 'coverImageUrl') {
                     currentStep = FormStep.BASIC_INFO;
                     break;
-                } else if (field in metadataSchema.shape) {
+                } else if (field === 'readingTime' || field === 'language' || field === 'isbn' || field === 'publicationDate') {
                     currentStep = FormStep.METADATA;
                     break;
                 } else if (field === 'pages') {
@@ -220,15 +202,7 @@ export async function action({ request }: Route.ActionArgs): Promise<Response> {
             }
         }
 
-        return new Response(
-            JSON.stringify({ success: true, ebookId: ebook?.ebook_id || "" }),
-            {
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                status: 200,
-            }
-        );
+        return redirect(`/ebooks/${ebook.ebook_id}`);
     } catch (error) {
         console.error("Action 함수 실행 중 오류가 발생했습니다:", error);
         return new Response(
@@ -254,237 +228,12 @@ export function meta({ data }: Route.MetaArgs) {
     ];
 }
 
-const EbookNewPage = () => {
-    const navigate = useNavigate();
-    const actionData = useActionData<ActionData>();
-    const [currentStep, setCurrentStep] = useState<FormStep>(FormStep.BASIC_INFO);
-    const [isSaving, setIsSaving] = useState(false);
-    const formRef = useRef<HTMLFormElement>(null);
-
-    // 폼 설정
-    const methods = useForm<EbookFormValues>({
-        resolver: zodResolver(ebookFormSchema),
-        defaultValues: actionData?.defaultValues || {
-            title: "",
-            description: "",
-            price: 0,
-            status: "draft",
-            isFeatured: false,
-            coverImageUrl: "",
-            readingTime: 0,
-            language: "ko",
-            isbn: "",
-            publicationDate: "",
-            pages: [],
-            sampleContent: ""
-        },
-        mode: "onChange"
-    });
-
-    const { trigger, getValues, formState, setError } = methods;
-
-    // 액션 데이터 처리
-    useEffect(() => {
-        if (actionData) {
-            // 필드 에러 설정
-            if (actionData.fieldErrors) {
-                Object.entries(actionData.fieldErrors).forEach(([field, message]) => {
-                    if (field !== 'form' && message) {
-                        setError(field as any, {
-                            type: "server",
-                            message
-                        });
-                    }
-                });
-            }
-
-            // 스텝 이동
-            if (actionData.step) {
-                setCurrentStep(actionData.step);
-            }
-
-            // 성공 시 리다이렉트
-            if (actionData.success && actionData.ebookId) {
-                navigate(`/ebooks/${actionData.ebookId}`);
-            }
-        }
-    }, [actionData, setError, navigate]);
-
-    // 현재 스텝 검증
-    const validateCurrentStep = async () => {
-        const result = await trigger(Object.keys(stepSchemas[currentStep].shape) as any);
-        return result;
-    };
-
-    // 다음 스텝으로 이동
-    const handleNext = async () => {
-        const isValid = await validateCurrentStep();
-        if (isValid) {
-            const currentIndex = FORM_STEPS.indexOf(currentStep);
-            if (currentIndex < FORM_STEPS.length - 1) {
-                setCurrentStep(FORM_STEPS[currentIndex + 1]);
-                window.scrollTo(0, 0);
-            }
-        }
-    };
-
-    // 이전 스텝으로 이동
-    const handlePrev = () => {
-        const currentIndex = FORM_STEPS.indexOf(currentStep);
-        if (currentIndex > 0) {
-            setCurrentStep(FORM_STEPS[currentIndex - 1]);
-            window.scrollTo(0, 0);
-        }
-    };
-
-    // 폼 저장
-    const handleSave = async () => {
-        // 모든 스텝 검증
-        let isValid = true;
-        for (const step of FORM_STEPS) {
-            const prevStep = currentStep;
-            setCurrentStep(step);
-            const isStepValid = await validateCurrentStep();
-            if (!isStepValid) {
-                // 유효하지 않은 단계로 이동
-                setCurrentStep(step);
-                isValid = false;
-                break;
-            }
-            // 검증 후 원래 단계로 복원
-            setCurrentStep(prevStep);
-        }
-
-        if (!isValid) return;
-        setIsSaving(true);
-
-        // 폼 제출
-        if (formRef.current) {
-            formRef.current.submit();
-        }
-    };
-
-    // 현재 스텝의 다음 버튼 비활성화 여부
-    const isNextDisabled = () => {
-        switch (currentStep) {
-            case FormStep.BASIC_INFO:
-                // title 필드가 변경되었고 에러가 없는지 확인
-                return !!formState.errors.title;
-            case FormStep.PAGES:
-                // pages 배열이 존재하고 비어있지 않은지 확인
-                const pages = getValues("pages");
-                return !pages || pages.length === 0;
-            default:
-                // 다른 스텝은 항상 다음으로 이동 가능
-                return false;
-        }
-    };
-
-    const isLastStep = currentStep === FORM_STEPS[FORM_STEPS.length - 1];
-
+export default function EbookNewPage({ actionData }: Route.ComponentProps) {
     return (
-        <div className="container py-8">
-            <div className="flex items-center mb-6">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => navigate(-1)}
-                    className="mr-2"
-                >
-                    <ArrowLeft className="h-5 w-5" />
-                </Button>
-                <h1 className="text-2xl font-bold">새 전자책 만들기</h1>
-            </div>
-
-            {/* 서버 오류 메시지 표시 */}
-            {actionData?.fieldErrors?.form && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-                    <p>{actionData.fieldErrors.form}</p>
-                </div>
-            )}
-
-            <EbookFormStepper
-                currentStep={currentStep}
-                completedSteps={[]}
-                onStepChange={setCurrentStep}
-            />
-
-            <FormProvider {...methods}>
-                <Form
-                    ref={formRef}
-                    method="post"
-                    encType="multipart/form-data"
-                    className="space-y-8 mt-6"
-                >
-                    {/* 기본 정보 스텝 */}
-                    {currentStep === FormStep.BASIC_INFO && (
-                        <BasicInfoStep />
-                    )}
-
-                    {/* 메타데이터 스텝 */}
-                    {currentStep === FormStep.METADATA && (
-                        <MetadataStep />
-                    )}
-
-                    {/* 페이지 스텝 */}
-                    {currentStep === FormStep.PAGES && (
-                        <PagesStep />
-                    )}
-
-                    {/* 샘플 콘텐츠 스텝 */}
-                    {currentStep === FormStep.SAMPLE_CONTENT && (
-                        <SampleContentStep />
-                    )}
-
-                    {/* 폼 데이터 숨겨서 전송 */}
-                    <input type="hidden" name="title" value={getValues("title")} />
-                    <input type="hidden" name="description" value={getValues("description") || ""} />
-                    <input type="hidden" name="price" value={getValues("price") || 0} />
-                    <input type="hidden" name="status" value={getValues("status")} />
-                    <input type="hidden" name="isFeatured" value={getValues("isFeatured") ? "on" : "off"} />
-                    <input type="hidden" name="coverImageUrl" value={getValues("coverImageUrl") || ""} />
-                    <input type="hidden" name="readingTime" value={getValues("readingTime") || 0} />
-                    <input type="hidden" name="language" value={getValues("language")} />
-                    <input type="hidden" name="isbn" value={getValues("isbn") || ""} />
-                    <input type="hidden" name="publicationDate" value={getValues("publicationDate") || ""} />
-                    <input type="hidden" name="pages" value={JSON.stringify(getValues("pages"))} />
-                    <input type="hidden" name="sampleContent" value={getValues("sampleContent") || ""} />
-
-                    <div className="flex justify-between mt-6">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handlePrev}
-                            disabled={currentStep === FORM_STEPS[0]}
-                        >
-                            이전
-                        </Button>
-
-                        <div className="flex gap-2">
-                            {isLastStep ? (
-                                <Button
-                                    type="button"
-                                    disabled={isSaving}
-                                    onClick={handleSave}
-                                >
-                                    {isSaving ? "저장 중..." : "저장하기"}
-                                </Button>
-                            ) : (
-                                <Button
-                                    type="button"
-                                    onClick={handleNext}
-                                    disabled={isNextDisabled()}
-                                    className="flex items-center"
-                                >
-                                    다음
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-                </Form>
-            </FormProvider>
-        </div>
+        <EbookForm
+            mode="new"
+            actionData={actionData}
+            title="새 전자책 만들기"
+        />
     );
-};
-
-export default EbookNewPage; 
+} 

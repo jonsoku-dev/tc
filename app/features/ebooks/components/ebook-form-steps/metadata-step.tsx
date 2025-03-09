@@ -1,12 +1,21 @@
 import { useFormContext } from "react-hook-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/common/components/ui/card";
-import { Input } from "~/common/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/common/components/ui/select";
+import { FormInputPair, FormSelectPair } from "../form-items";
 import type { EbookFormValues } from "../../schemas/ebook-form.schema";
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "~/common/components/ui/form";
 
-export function MetadataStep() {
+interface MetadataStepProps {
+    isEditMode?: boolean;
+}
+
+export function MetadataStep({ isEditMode = false }: MetadataStepProps) {
     const { control } = useFormContext<EbookFormValues>();
+
+    // 언어 옵션 생성
+    const languageOptions = [
+        { label: "한국어", value: "ko" },
+        { label: "영어", value: "en" },
+        { label: "일본어", value: "ja" }
+    ];
 
     return (
         <Card>
@@ -18,83 +27,34 @@ export function MetadataStep() {
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                        control={control}
+                    <FormInputPair
                         name="readingTime"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>읽기 시간 (분)</FormLabel>
-                                <FormControl>
-                                    <Input
-                                        {...field}
-                                        type="number"
-                                        placeholder="예상 읽기 시간을 분 단위로 입력하세요"
-                                        min="1"
-                                    />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
+                        label="읽기 시간 (분)"
+                        placeholder="예상 읽기 시간을 분 단위로 입력하세요"
+                        type="number"
+                        min={1}
                     />
 
-                    <FormField
-                        control={control}
+                    <FormSelectPair
                         name="language"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>언어</FormLabel>
-                                <Select
-                                    onValueChange={field.onChange}
-                                    defaultValue={field.value}
-                                >
-                                    <FormControl>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="언어 선택" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        <SelectItem value="ko">한국어</SelectItem>
-                                        <SelectItem value="en">영어</SelectItem>
-                                        <SelectItem value="ja">일본어</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                        )}
+                        label="언어"
+                        placeholder="언어 선택"
+                        options={languageOptions}
                     />
+                </div>
 
-                    <FormField
-                        control={control}
-                        name="publicationDate"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>출판일</FormLabel>
-                                <FormControl>
-                                    <Input
-                                        {...field}
-                                        type="date"
-                                    />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-
-                    <FormField
-                        control={control}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormInputPair
                         name="isbn"
-                        render={({ field }) => (
-                            <FormItem className="md:col-span-2">
-                                <FormLabel>ISBN</FormLabel>
-                                <FormControl>
-                                    <Input
-                                        {...field}
-                                        placeholder="ISBN을 입력하세요 (선택사항)"
-                                    />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
+                        label="ISBN"
+                        placeholder="ISBN을 입력하세요"
+                    />
+
+                    <FormInputPair
+                        name="publicationDate"
+                        label="출판일"
+                        placeholder="출판일을 선택하세요"
+                        type="date"
                     />
                 </div>
             </CardContent>

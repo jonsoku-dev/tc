@@ -1,26 +1,9 @@
-import { useEffect, useRef, useReducer } from "react";
-import { Form, useNavigate } from "react-router";
-import { useSupabase } from "~/common/hooks/use-supabase";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/common/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/common/components/ui/card";
-import { Input } from "~/common/components/ui/input";
-import { Textarea } from "~/common/components/ui/textarea";
-import { Button } from "~/common/components/ui/button";
-import { Label } from "~/common/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/common/components/ui/select";
-import { ArrowLeft, Save } from "lucide-react";
-import { format } from "date-fns";
-import { EBOOK_STATUS } from "../constants";
-import { EbookCover } from "../components/ebook-cover";
-import { MarkdownEditor } from "../components/markdown-editor";
-import type { PageItem } from "../machines/ebook-form.machine";
-import type { Block } from "../components/types";
-import { PageEditor } from "../components/page-editor";
-import type { Route } from "./+types/ebook-edit-page.page";
 import { createClient } from "~/supa-client";
-import { toast } from "sonner";
-import { createEbookFormMachine } from "../machines/ebook-form.machine";
-import { useMachine } from "@xstate/react";
+import { EbookForm } from "../components/ebook-form";
+import { EBOOK_STATUS } from "../constants";
+import type { Route } from "./+types/ebook-edit-page.page";
+import { format } from "date-fns";
+import { redirect } from "react-router";
 
 export async function loader({ params }: Route.LoaderArgs) {
     const ebookId = params.ebookId;
@@ -64,6 +47,15 @@ export async function loader({ params }: Route.LoaderArgs) {
             throw new Response("전자책 페이지를 가져오는 중 오류가 발생했습니다.", { status: 500 });
         }
 
+        // 날짜 형식 변환
+        if (ebook.publication_date) {
+            try {
+                ebook.publication_date = format(new Date(ebook.publication_date), "yyyy-MM-dd");
+            } catch (error) {
+                console.error("날짜 변환 오류:", error);
+            }
+        }
+
         return {
             ebook: {
                 ...ebook,
@@ -80,10 +72,21 @@ export async function loader({ params }: Route.LoaderArgs) {
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
+    console.log("[action] 시작: 파라미터", params);
+
     const ebookId = params.ebookId;
 
     if (!ebookId) {
-        return { success: false, error: "전자책 ID가 필요합니다." };
+        console.log("[action] 오류: 전자책 ID 없음");
+        return new Response(
+            JSON.stringify({ success: false, error: "전자책 ID가 필요합니다." }),
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                status: 400,
+            }
+        );
     }
 
     // Supabase 클라이언트 생성
@@ -93,7 +96,19 @@ export async function action({ request, params }: Route.ActionArgs) {
     });
 
     try {
+        console.log("[action] 폼 데이터 파싱 시작");
         const formData = await request.formData();
+
+        // 폼 데이터 로깅
+        const formDataObj: Record<string, any> = {};
+        for (const [key, value] of formData.entries()) {
+            formDataObj[key] = value;
+        }
+        console.log("[action] 폼 데이터:", {
+            ...formDataObj,
+            pages: formData.get("pages") ? JSON.parse(formData.get("pages") as string).length : 0
+        });
+
         const title = formData.get("title") as string;
         const description = formData.get("description") as string;
         const status = formData.get("status") as string;
@@ -109,9 +124,19 @@ export async function action({ request, params }: Route.ActionArgs) {
 
         // status 값이 유효한지 확인
         if (!EBOOK_STATUS.includes(status as typeof EBOOK_STATUS[number])) {
-            return { success: false, error: "유효하지 않은 상태 값입니다." };
+            console.log("[action] 오류: 유효하지 않은 상태 값", status);
+            return new Response(
+                JSON.stringify({ success: false, error: "유효하지 않은 상태 값입니다." }),
+                {
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    status: 400,
+                }
+            );
         }
 
+        console.log("[action] 전자책 정보 업데이트 시작");
         // 전자책 정보 업데이트
         const { error: updateError } = await supabase
             .from('ebooks')
@@ -132,10 +157,19 @@ export async function action({ request, params }: Route.ActionArgs) {
             .eq('ebook_id', ebookId);
 
         if (updateError) {
-            console.error("전자책 업데이트 오류:", updateError);
-            return { success: false, error: "전자책 정보를 업데이트하는 중 오류가 발생했습니다." };
+            console.error("[action] 전자책 업데이트 오류:", updateError);
+            return new Response(
+                JSON.stringify({ success: false, error: "전자책 정보를 업데이트하는 중 오류가 발생했습니다." }),
+                {
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    status: 500,
+                }
+            );
         }
 
+        console.log("[action] 기존 페이지 조회 시작");
         // 기존 페이지 가져오기
         const { data: existingPages, error: pagesError } = await supabase
             .from('ebook_pages')
@@ -143,9 +177,21 @@ export async function action({ request, params }: Route.ActionArgs) {
             .eq('ebook_id', ebookId);
 
         if (pagesError) {
-            console.error("전자책 페이지 조회 오류:", pagesError);
-            return { success: false, error: "전자책 페이지를 조회하는 중 오류가 발생했습니다." };
+            console.error("[action] 전자책 페이지 조회 오류:", pagesError);
+            return new Response(
+                JSON.stringify({ success: false, error: "전자책 페이지를 조회하는 중 오류가 발생했습니다." }),
+                {
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    status: 500,
+                }
+            );
         }
+
+        console.log("[action] 페이지 업데이트 로직 시작");
+        console.log("[action] 기존 페이지 수:", existingPages?.length || 0);
+        console.log("[action] 새 페이지 수:", pages.length);
 
         // 페이지 업데이트 로직
         // 1. 기존 페이지 ID를 맵으로 저장
@@ -173,7 +219,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 
         const pageIdsToKeep = new Set<string>();
 
-        pages.forEach((page: PageItem) => {
+        pages.forEach((page: any) => {
             // 기존 페이지 ID가 있는 경우 업데이트
             if (page.id && page.id.startsWith('page-id-')) {
                 const pageId = page.id.replace('page-id-', '');
@@ -206,22 +252,39 @@ export async function action({ request, params }: Route.ActionArgs) {
             }
         });
 
+        console.log("[action] 페이지 처리 요약:", {
+            업데이트: pagesToUpdate.length,
+            생성: pagesToCreate.length,
+            삭제: pageIdsToDelete.length
+        });
+
         // 4. 트랜잭션 처리
         // 4.1. 삭제할 페이지 처리
         if (pageIdsToDelete.length > 0) {
+            console.log("[action] 페이지 삭제 시작:", pageIdsToDelete);
             const { error: deleteError } = await supabase
                 .from('ebook_pages')
                 .delete()
                 .in('page_id', pageIdsToDelete);
 
             if (deleteError) {
-                console.error("페이지 삭제 오류:", deleteError);
-                return { success: false, error: "페이지를 삭제하는 중 오류가 발생했습니다." };
+                console.error("[action] 페이지 삭제 오류:", deleteError);
+                return new Response(
+                    JSON.stringify({ success: false, error: "페이지를 삭제하는 중 오류가 발생했습니다." }),
+                    {
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        status: 500,
+                    }
+                );
             }
         }
 
         // 4.2. 업데이트할 페이지 처리
-        const updatePromises = pagesToUpdate.map(async (page) => {
+        console.log("[action] 페이지 업데이트 시작");
+        for (const page of pagesToUpdate) {
+            console.log(`[action] 페이지 업데이트: ${page.page_id}`);
             const { error: updatePageError } = await supabase
                 .from('ebook_pages')
                 .update({
@@ -233,33 +296,54 @@ export async function action({ request, params }: Route.ActionArgs) {
                 .eq('page_id', page.page_id);
 
             if (updatePageError) {
-                console.error("페이지 업데이트 오류:", updatePageError);
-                return { success: false, error: "페이지를 업데이트하는 중 오류가 발생했습니다." };
+                console.error("[action] 페이지 업데이트 오류:", updatePageError);
+                return new Response(
+                    JSON.stringify({ success: false, error: "페이지를 업데이트하는 중 오류가 발생했습니다." }),
+                    {
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        status: 500,
+                    }
+                );
             }
-        });
+        }
 
         // 4.3. 새 페이지 생성
-        const insertPromises = pagesToCreate.map(async (page) => {
+        if (pagesToCreate.length > 0) {
+            console.log("[action] 새 페이지 생성 시작:", pagesToCreate.length);
             const { error: createError } = await supabase
                 .from('ebook_pages')
-                .insert({
-                    ebook_id: ebookId,
-                    title: page.title,
-                    blocks: page.blocks,
-                    position: page.position,
-                    page_number: page.page_number
-                });
+                .insert(pagesToCreate);
 
             if (createError) {
-                console.error("페이지 생성 오류:", createError);
-                return { success: false, error: "페이지를 생성하는 중 오류가 발생했습니다." };
+                console.error("[action] 페이지 생성 오류:", createError);
+                return new Response(
+                    JSON.stringify({ success: false, error: "페이지를 생성하는 중 오류가 발생했습니다." }),
+                    {
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        status: 500,
+                    }
+                );
             }
-        });
+        }
 
-        return { success: true, ebookId };
+        console.log("[action] 성공 응답 반환");
+        // 성공 응답 반환
+        return redirect(`/ebooks/${ebookId}`);
     } catch (error) {
-        console.error("전자책 업데이트 오류:", error);
-        return { success: false, error: "전자책 정보를 업데이트하는 중 오류가 발생했습니다." };
+        console.error("[action] 전자책 업데이트 오류:", error);
+        return new Response(
+            JSON.stringify({ success: false, error: "전자책 정보를 업데이트하는 중 오류가 발생했습니다." }),
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                status: 500,
+            }
+        );
     }
 }
 
@@ -271,327 +355,45 @@ export function meta({ data }: Route.MetaArgs) {
 }
 
 export default function EbookEditPage({ loaderData, actionData }: Route.ComponentProps) {
-    const navigate = useNavigate();
-    const { ebook } = loaderData;
-    const initialized = useRef(false);
-
-    // 초기 데이터 준비
-    const initialData = {
-        title: ebook.title || "",
-        description: ebook.description || "",
-        status: ebook.ebook_status || "draft",
-        price: ebook.price?.toString() || "",
-        publicationDate: ebook.publication_date
-            ? format(new Date(ebook.publication_date), "yyyy-MM-dd")
-            : "",
-        readingTime: ebook.reading_time?.toString() || "",
-        language: ebook.language || "ko",
-        isFeatured: ebook.is_featured || false,
-        isbn: ebook.isbn || "",
-        coverImageUrl: ebook.cover_image_url || "",
-        sampleContent: ebook.sample_content || "",
-        pages: [],
-        ebookId: ebook.ebook_id || "",
-        coverImageFile: null,
-        coverImagePreview: null,
-        pageCount: ebook.page_count?.toString() || "0",
-        activeTab: "basic",
-        formError: null,
-        isSubmitting: false,
-        isSuccess: false,
-        isSaving: false,
-        isEdit: true
-    };
-
-    // XState 머신 생성 및 사용
-    const [state, send] = useMachine(createEbookFormMachine, {
-        input: {
-            isEdit: true,
-            initialData
-        }
+    // 디버깅 로그
+    console.log("[EbookEditPage] 로더 데이터:", {
+        ebookId: loaderData?.ebook?.ebook_id,
+        title: loaderData?.ebook?.title,
+        pagesCount: loaderData?.ebook?.pages?.length || 0
     });
+    console.log("[EbookEditPage] 액션 데이터:", actionData);
 
-    const {
-        title, description, status, price, publicationDate,
-        readingTime, language, isFeatured, isbn,
-        coverImageUrl, sampleContent, pages,
-        activeTab, isSaving
-    } = state.context;
+    // 액션 데이터가 Response 객체인 경우 처리
+    let processedActionData: any = actionData;
 
-    // 페이지 데이터 초기화 - 한 번만 실행되도록 useRef 사용
-    useEffect(() => {
-        if (!initialized.current && ebook.pages && ebook.pages.length > 0) {
-            const formattedPages = ebook.pages.map((page: any) => ({
-                id: `page-id-${page.page_id}`,
-                title: page.title || `페이지 ${page.page_number}`,
-                blocks: Array.isArray(page.blocks) ? page.blocks : [],
-                position: page.position || page.page_number
-            }));
-            send({ type: 'SET_PAGES', pages: formattedPages });
-            initialized.current = true;
-        }
-    }, []);
+    if (actionData && typeof actionData === 'object' && 'status' in actionData) {
+        try {
+            console.log("[EbookEditPage] Response 객체 처리:", {
+                status: (actionData as any).status,
+                statusText: (actionData as any).statusText,
+                headers: (actionData as any).headers
+            });
 
-    // 액션 결과 처리 - actionData가 변경될 때만 실행
-    useEffect(() => {
-        if (actionData) {
-            if (actionData.success) {
-                send({ type: 'SUBMIT_SUCCESS', ebookId: actionData.ebookId || "" });
-                toast("저장 완료", {
-                    description: "전자책 정보가 성공적으로 저장되었습니다.",
-                });
-            } else if (actionData.error) {
-                send({ type: 'SET_FORM_ERROR', error: actionData.error });
-                toast("저장 실패", {
-                    description: actionData.error,
-                });
+            // Response 객체에서 데이터 추출
+            if ((actionData as any).status >= 200 && (actionData as any).status < 300) {
+                processedActionData = { success: true, ebookId: loaderData.ebook.ebook_id };
+                console.log("[EbookEditPage] 성공 응답 생성:", processedActionData);
+            } else {
+                processedActionData = { success: false, error: "저장 중 오류가 발생했습니다." };
+                console.log("[EbookEditPage] 오류 응답 생성:", processedActionData);
             }
+        } catch (error) {
+            console.error("[EbookEditPage] 액션 데이터 처리 오류:", error);
+            processedActionData = { success: false, error: "데이터 처리 중 오류가 발생했습니다." };
         }
-    }, [actionData]);
-
-    const handleCoverImageChange = (file: File) => {
-        // 실제 구현에서는 Supabase Storage에 이미지를 업로드하고 URL을 설정합니다.
-        // 여기서는 간단히 File 객체를 URL로 변환하여 미리보기만 제공합니다.
-        const url = URL.createObjectURL(file);
-        send({ type: 'SET_COVER_IMAGE', file });
-    };
-
-    const handlePagesChange = (updatedPages: PageItem[]) => {
-        send({ type: 'SET_PAGES', pages: updatedPages });
-    };
-
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-        send({ type: 'SUBMIT' });
-    };
+    }
 
     return (
-        <div className="container py-8">
-            <div className="flex items-center mb-6">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => navigate(-1)}
-                    className="mr-2"
-                >
-                    <ArrowLeft className="h-5 w-5" />
-                </Button>
-                <h1 className="text-2xl font-bold">{title || "새 전자책"} 편집</h1>
-            </div>
-
-            <Form method="post" onSubmit={handleSubmit}>
-                <input type="hidden" name="coverImageUrl" value={coverImageUrl} />
-                <input type="hidden" name="isFeatured" value={isFeatured.toString()} />
-
-                <Tabs
-                    value={activeTab}
-                    onValueChange={(tab) => send({ type: 'CHANGE_TAB', tab })}
-                    className="w-full"
-                >
-                    <TabsList className="mb-6">
-                        <TabsTrigger value="basic">기본 정보</TabsTrigger>
-                        <TabsTrigger value="pages">페이지</TabsTrigger>
-                        <TabsTrigger value="sample">샘플</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="basic">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="md:col-span-2 space-y-6">
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle>기본 정보</CardTitle>
-                                        <CardDescription>
-                                            전자책의 기본 정보를 입력하세요.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="title">제목</Label>
-                                            <Input
-                                                id="title"
-                                                name="title"
-                                                value={title}
-                                                onChange={(e) => send({ type: 'SET_TITLE', value: e.target.value })}
-                                                required
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="description">설명</Label>
-                                            <Textarea
-                                                id="description"
-                                                name="description"
-                                                value={description}
-                                                onChange={(e) => send({ type: 'SET_DESCRIPTION', value: e.target.value })}
-                                                rows={4}
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="status">상태</Label>
-                                                <Select
-                                                    value={status}
-                                                    onValueChange={(value) => send({ type: 'SET_STATUS', value })}
-                                                >
-                                                    <SelectTrigger id="status">
-                                                        <SelectValue placeholder="상태 선택" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {EBOOK_STATUS.map((statusOption) => (
-                                                            <SelectItem key={statusOption} value={statusOption}>
-                                                                {statusOption === "draft"
-                                                                    ? "초안"
-                                                                    : statusOption === "published"
-                                                                        ? "출판됨"
-                                                                        : "보관됨"}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                                <input type="hidden" name="status" value={status} />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="price">가격</Label>
-                                                <Input
-                                                    id="price"
-                                                    name="price"
-                                                    type="number"
-                                                    value={price}
-                                                    onChange={(e) => send({ type: 'SET_PRICE', value: e.target.value })}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="publicationDate">출판일</Label>
-                                                <Input
-                                                    id="publicationDate"
-                                                    name="publicationDate"
-                                                    type="date"
-                                                    value={publicationDate}
-                                                    onChange={(e) => send({ type: 'SET_PUBLICATION_DATE', value: e.target.value })}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="readingTime">읽기 시간 (분)</Label>
-                                                <Input
-                                                    id="readingTime"
-                                                    name="readingTime"
-                                                    type="number"
-                                                    value={readingTime}
-                                                    onChange={(e) => send({ type: 'SET_READING_TIME', value: e.target.value })}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="language">언어</Label>
-                                                <Select
-                                                    value={language}
-                                                    onValueChange={(value) => send({ type: 'SET_LANGUAGE', value })}
-                                                >
-                                                    <SelectTrigger id="language">
-                                                        <SelectValue placeholder="언어 선택" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="ko">한국어</SelectItem>
-                                                        <SelectItem value="en">영어</SelectItem>
-                                                        <SelectItem value="ja">일본어</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                                <input type="hidden" name="language" value={language} />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="isbn">ISBN</Label>
-                                                <Input
-                                                    id="isbn"
-                                                    name="isbn"
-                                                    value={isbn}
-                                                    onChange={(e) => send({ type: 'SET_ISBN', value: e.target.value })}
-                                                />
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </div>
-                            <div>
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle>표지 이미지</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <EbookCover
-                                            imageUrl={coverImageUrl}
-                                            alt={title}
-                                            onImageChange={handleCoverImageChange}
-                                            editable
-                                        />
-                                    </CardContent>
-                                    <CardFooter>
-                                        <div className="flex items-center space-x-2">
-                                            <input
-                                                type="checkbox"
-                                                id="isFeatured"
-                                                checked={isFeatured}
-                                                onChange={(e) => send({ type: 'SET_IS_FEATURED', value: e.target.checked })}
-                                                className="rounded"
-                                            />
-                                            <Label htmlFor="isFeatured">추천 도서로 표시</Label>
-                                        </div>
-                                    </CardFooter>
-                                </Card>
-                            </div>
-                        </div>
-                    </TabsContent>
-
-                    <TabsContent value="pages">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>페이지 관리</CardTitle>
-                                <CardDescription>
-                                    전자책의 페이지를 관리하세요. 페이지를 추가, 삭제, 순서 변경할 수 있습니다.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <PageEditor
-                                    pages={pages}
-                                    editable={true}
-                                    onPagesChange={handlePagesChange}
-                                />
-                                <input
-                                    type="hidden"
-                                    name="pages"
-                                    value={JSON.stringify(pages)}
-                                />
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    <TabsContent value="sample">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>샘플 콘텐츠</CardTitle>
-                                <CardDescription>
-                                    전자책의 샘플 콘텐츠를 작성하세요. 이 내용은 구매 전 미리보기로 제공됩니다.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <MarkdownEditor
-                                    value={sampleContent}
-                                    onChange={(value) => send({ type: 'SET_SAMPLE_CONTENT', value })}
-                                    minHeight={400}
-                                />
-                                <input type="hidden" name="sampleContent" value={sampleContent} />
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-                </Tabs>
-
-                <div className="mt-6 flex justify-end">
-                    <Button type="submit" disabled={isSaving}>
-                        {isSaving ? "저장 중..." : "저장"}
-                        {!isSaving && <Save className="ml-2 h-4 w-4" />}
-                    </Button>
-                </div>
-            </Form>
-        </div>
+        <EbookForm
+            mode="edit"
+            initialData={loaderData}
+            actionData={processedActionData}
+            title={`${loaderData.ebook.title} 편집`}
+        />
     );
 } 
