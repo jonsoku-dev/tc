@@ -7,6 +7,8 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { Highlight } from "./types";
 import { useHighlights, useDeleteHighlight, useUpdateHighlightNote } from "../hooks/use-highlight-api";
+import { EBOOK_QUERY_KEYS } from "../constants/query-keys";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface HighlightItemProps {
     highlight: Highlight;
@@ -212,13 +214,28 @@ export function HighlightTab({
     const { highlights, status, hasNextPage, isFetchingNextPage, fetchNextPage, ref } = useHighlights(ebookId, currentPage);
     const deleteHighlightMutation = useDeleteHighlight(ebookId);
     const updateHighlightNoteMutation = useUpdateHighlightNote(ebookId);
+    const queryClient = useQueryClient();
 
     // 하이라이트 삭제 핸들러
     const handleDeleteHighlight = useCallback((highlightId: string) => {
         if (window.confirm("하이라이트를 삭제하시겠습니까?")) {
             deleteHighlightMutation.mutate(highlightId, {
-                onSuccess: () => {
+                onSuccess: (data) => {
                     alert("하이라이트가 삭제되었습니다.");
+
+                    // 하이라이트 삭제 후 페이지 렌더러에 반영되도록 쿼리 무효화
+                    queryClient.invalidateQueries({
+                        queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId)
+                    });
+
+                    queryClient.invalidateQueries({
+                        queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, currentPage)
+                    });
+
+                    // 하이라이트 변경 이벤트 발생
+                    window.dispatchEvent(new CustomEvent('highlight-change', {
+                        detail: { type: 'delete', highlightId }
+                    }));
                 },
                 onError: (error) => {
                     alert("하이라이트 삭제 중 오류가 발생했습니다.");
@@ -226,21 +243,35 @@ export function HighlightTab({
                 }
             });
         }
-    }, [deleteHighlightMutation]);
+    }, [deleteHighlightMutation, ebookId, currentPage, queryClient]);
 
     // 하이라이트 노트 업데이트 핸들러
     const handleUpdateHighlightNote = useCallback((highlightId: string, note: string) => {
         updateHighlightNoteMutation.mutate({ highlightId, note }, {
-            onSuccess: () => {
+            onSuccess: (updatedHighlight) => {
                 // 부모 컴포넌트에 알림
                 parentUpdateHighlightNote(highlightId, note);
+
+                // 하이라이트 노트 업데이트 후 페이지 렌더러에 반영되도록 쿼리 무효화
+                queryClient.invalidateQueries({
+                    queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId)
+                });
+
+                queryClient.invalidateQueries({
+                    queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, currentPage)
+                });
+
+                // 하이라이트 변경 이벤트 발생
+                window.dispatchEvent(new CustomEvent('highlight-change', {
+                    detail: { type: 'update', highlight: updatedHighlight }
+                }));
             },
             onError: (error) => {
                 alert("노트 업데이트 중 오류가 발생했습니다.");
                 console.error("노트 업데이트 오류:", error);
             }
         });
-    }, [updateHighlightNoteMutation, parentUpdateHighlightNote]);
+    }, [updateHighlightNoteMutation, parentUpdateHighlightNote, ebookId, currentPage, queryClient]);
 
     if (status === "pending") {
         return <div className="text-center py-4">하이라이트를 불러오는 중...</div>;

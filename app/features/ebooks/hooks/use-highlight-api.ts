@@ -21,23 +21,44 @@ interface HighlightRow {
     created_at: string;
 }
 
+// Supabase 하이라이트 행을 클라이언트 하이라이트 객체로 변환
+function convertHighlightRowToHighlight(row: any): Highlight {
+    return {
+        id: row.highlight_id,
+        text: row.text,
+        startOffset: row.start_position,
+        endOffset: row.end_position,
+        color: row.color || "#FFEB3B",
+        note: row.note || undefined,
+        createdAt: new Date(row.created_at || new Date()),
+        pageNumber: row.page_number,
+        blockId: row.block_id || undefined,
+        blockType: row.block_type || undefined
+    };
+}
+
 /**
  * 하이라이트 목록을 조회하는 훅
  */
 export function useHighlights(ebookId: string, pageNumber?: number) {
     const { supabase } = useSupabase();
     const { ref, inView } = useInView();
+    const queryClient = useQueryClient();
+
+    // 쿼리 키 결정
+    const queryKey = pageNumber !== undefined
+        ? EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, pageNumber)
+        : EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId);
 
     const {
         data,
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
-        status
+        status,
+        refetch
     } = useInfiniteQuery({
-        queryKey: pageNumber
-            ? EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, pageNumber)
-            : EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId),
+        queryKey,
         queryFn: async ({ pageParam = 0 }) => {
             let query = supabase
                 .from("highlights")
@@ -52,27 +73,21 @@ export function useHighlights(ebookId: string, pageNumber?: number) {
 
             const { data, error, count } = await query.range(pageParam, pageParam + 9);
 
-            if (error) throw error;
+            if (error) {
+                console.error("하이라이트 조회 오류:", error);
+                throw error;
+            }
 
             return {
-                highlights: (data as HighlightRow[]).map(item => ({
-                    id: item.highlight_id,
-                    text: item.text,
-                    startOffset: item.start_position,
-                    endOffset: item.end_position,
-                    color: item.color || "#FFEB3B",
-                    note: item.note || undefined,
-                    createdAt: new Date(item.created_at || new Date()),
-                    pageNumber: item.page_number,
-                    blockId: item.block_id || undefined,
-                    blockType: item.block_type || undefined
-                })),
+                highlights: (data as any[]).map(convertHighlightRowToHighlight),
                 nextPage: data.length === 10 ? pageParam + 10 : undefined,
                 totalCount: count || 0
             };
         },
         getNextPageParam: (lastPage) => lastPage.nextPage,
-        initialPageParam: 0
+        initialPageParam: 0,
+        staleTime: 1000 * 10, // 10초
+        refetchInterval: 5000, // 5초마다 자동 갱신
     });
 
     // 무한 스크롤 처리
@@ -82,6 +97,26 @@ export function useHighlights(ebookId: string, pageNumber?: number) {
         }
     }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+    // 다른 탭에서 변경이 있을 때 자동 갱신
+    useEffect(() => {
+        const channel = supabase
+            .channel('highlight-changes')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'highlights',
+                filter: `ebook_id=eq.${ebookId}`
+            }, (payload) => {
+                console.log('하이라이트 변경 감지:', payload);
+                refetch();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [supabase, ebookId, refetch]);
+
     return {
         data,
         status,
@@ -89,7 +124,8 @@ export function useHighlights(ebookId: string, pageNumber?: number) {
         hasNextPage,
         isFetchingNextPage,
         fetchNextPage,
-        ref
+        ref,
+        refetch
     };
 }
 
@@ -123,20 +159,12 @@ export function useCreateHighlight(ebookId: string) {
                 .select()
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                console.error("하이라이트 생성 오류:", error);
+                throw error;
+            }
 
-            return {
-                id: (data as HighlightRow).highlight_id,
-                text: (data as HighlightRow).text,
-                startOffset: (data as HighlightRow).start_position,
-                endOffset: (data as HighlightRow).end_position,
-                color: (data as HighlightRow).color || "#FFEB3B",
-                note: (data as HighlightRow).note || undefined,
-                createdAt: new Date((data as HighlightRow).created_at || new Date()),
-                pageNumber: (data as HighlightRow).page_number,
-                blockId: (data as HighlightRow).block_id || undefined,
-                blockType: (data as HighlightRow).block_type || undefined
-            };
+            return convertHighlightRowToHighlight(data);
         },
         onSuccess: (newHighlight) => {
             // 모든 하이라이트 쿼리 무효화
@@ -148,6 +176,9 @@ export function useCreateHighlight(ebookId: string) {
             queryClient.invalidateQueries({
                 queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, newHighlight.pageNumber)
             });
+
+            // 캐시 업데이트
+            updateHighlightCache(queryClient, ebookId, newHighlight, 'add');
         },
     });
 }
@@ -168,20 +199,12 @@ export function useUpdateHighlightNote(ebookId: string) {
                 .select()
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                console.error("하이라이트 노트 업데이트 오류:", error);
+                throw error;
+            }
 
-            return {
-                id: (data as HighlightRow).highlight_id,
-                text: (data as HighlightRow).text,
-                startOffset: (data as HighlightRow).start_position,
-                endOffset: (data as HighlightRow).end_position,
-                color: (data as HighlightRow).color || "#FFEB3B",
-                note: (data as HighlightRow).note || undefined,
-                createdAt: new Date((data as HighlightRow).created_at || new Date()),
-                pageNumber: (data as HighlightRow).page_number,
-                blockId: (data as HighlightRow).block_id || undefined,
-                blockType: (data as HighlightRow).block_type || undefined
-            };
+            return convertHighlightRowToHighlight(data);
         },
         onMutate: async ({ highlightId, note }) => {
             // 쿼리 취소
@@ -195,47 +218,19 @@ export function useUpdateHighlightNote(ebookId: string) {
                 pageParams: number[];
             }>(EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId));
 
-            // Optimistic 업데이트
-            if (previousHighlights) {
-                queryClient.setQueryData(
-                    EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId),
-                    {
-                        ...previousHighlights,
-                        pages: previousHighlights.pages.map(page => ({
-                            ...page,
-                            highlights: page.highlights.map(h =>
-                                h.id === highlightId ? { ...h, note } : h
-                            )
-                        }))
-                    }
-                );
+            // 업데이트할 하이라이트 찾기
+            const highlightToUpdate = previousHighlights?.pages.flatMap(page => page.highlights).find(h => h.id === highlightId);
+
+            if (highlightToUpdate) {
+                // Optimistic 업데이트
+                const updatedHighlight = { ...highlightToUpdate, note };
+                updateHighlightCache(queryClient, ebookId, updatedHighlight, 'update');
+
+                // 페이지별 하이라이트 데이터도 업데이트
+                updateHighlightPageCache(queryClient, ebookId, updatedHighlight, 'update');
             }
 
-            // 페이지별 하이라이트 데이터도 업데이트
-            const updatedHighlight = previousHighlights?.pages.flatMap(page => page.highlights).find(h => h.id === highlightId);
-            if (updatedHighlight) {
-                const previousPageHighlights = queryClient.getQueryData<{
-                    pages: { highlights: Highlight[] }[];
-                    pageParams: number[];
-                }>(EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, updatedHighlight.pageNumber));
-
-                if (previousPageHighlights) {
-                    queryClient.setQueryData(
-                        EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, updatedHighlight.pageNumber),
-                        {
-                            ...previousPageHighlights,
-                            pages: previousPageHighlights.pages.map(page => ({
-                                ...page,
-                                highlights: page.highlights.map(h =>
-                                    h.id === highlightId ? { ...h, note } : h
-                                )
-                            }))
-                        }
-                    );
-                }
-            }
-
-            return { previousHighlights };
+            return { previousHighlights, pageNumber: highlightToUpdate?.pageNumber };
         },
         onError: (err, { highlightId, note }, context) => {
             // 오류 발생 시 이전 데이터로 롤백
@@ -246,14 +241,18 @@ export function useUpdateHighlightNote(ebookId: string) {
                 );
             }
         },
-        onSettled: (data) => {
+        onSettled: (data, error, { highlightId, note }, context) => {
             // 모든 하이라이트 쿼리 무효화
             queryClient.invalidateQueries({
                 queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId)
             });
 
-            if (data) {
-                // 특정 페이지 하이라이트 쿼리 무효화
+            // 특정 페이지 하이라이트 쿼리 무효화
+            if (context?.pageNumber) {
+                queryClient.invalidateQueries({
+                    queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, context.pageNumber)
+                });
+            } else if (data) {
                 queryClient.invalidateQueries({
                     queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, data.pageNumber)
                 });
@@ -271,13 +270,33 @@ export function useDeleteHighlight(ebookId: string) {
 
     return useMutation({
         mutationFn: async (highlightId: string) => {
+            // 삭제 전에 하이라이트 정보 가져오기
+            const { data: highlightData, error: getError } = await supabase
+                .from("highlights")
+                .select("page_number, highlight_id")
+                .eq("highlight_id", highlightId)
+                .single();
+
+            if (getError) {
+                console.error("하이라이트 정보 조회 오류:", getError);
+                throw getError;
+            }
+
+            const pageNumber = (highlightData as any).page_number;
+            const id = (highlightData as any).highlight_id;
+
+            // 하이라이트 삭제
             const { error } = await supabase
                 .from("highlights")
                 .delete()
                 .eq("highlight_id", highlightId);
 
-            if (error) throw error;
-            return { id: highlightId };
+            if (error) {
+                console.error("하이라이트 삭제 오류:", error);
+                throw error;
+            }
+
+            return { id, pageNumber };
         },
         onMutate: async (highlightId) => {
             // 쿼리 취소
@@ -291,46 +310,18 @@ export function useDeleteHighlight(ebookId: string) {
                 pageParams: number[];
             }>(EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId));
 
-            // 삭제할 하이라이트의 페이지 번호 저장
+            // 삭제할 하이라이트 찾기
             const highlightToDelete = previousHighlights?.pages.flatMap(page => page.highlights).find(h => h.id === highlightId);
-            const pageNumber = highlightToDelete?.pageNumber;
 
-            // Optimistic 업데이트
-            if (previousHighlights) {
-                queryClient.setQueryData(
-                    EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId),
-                    {
-                        ...previousHighlights,
-                        pages: previousHighlights.pages.map(page => ({
-                            ...page,
-                            highlights: page.highlights.filter(h => h.id !== highlightId)
-                        }))
-                    }
-                );
+            if (highlightToDelete) {
+                // Optimistic 업데이트
+                updateHighlightCache(queryClient, ebookId, highlightToDelete, 'delete');
+
+                // 페이지별 하이라이트 데이터도 업데이트
+                updateHighlightPageCache(queryClient, ebookId, highlightToDelete, 'delete');
             }
 
-            // 페이지별 하이라이트 데이터도 업데이트
-            if (pageNumber) {
-                const previousPageHighlights = queryClient.getQueryData<{
-                    pages: { highlights: Highlight[] }[];
-                    pageParams: number[];
-                }>(EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, pageNumber));
-
-                if (previousPageHighlights) {
-                    queryClient.setQueryData(
-                        EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, pageNumber),
-                        {
-                            ...previousPageHighlights,
-                            pages: previousPageHighlights.pages.map(page => ({
-                                ...page,
-                                highlights: page.highlights.filter(h => h.id !== highlightId)
-                            }))
-                        }
-                    );
-                }
-            }
-
-            return { previousHighlights, pageNumber };
+            return { previousHighlights, pageNumber: highlightToDelete?.pageNumber };
         },
         onError: (err, highlightId, context) => {
             // 오류 발생 시 이전 데이터로 롤백
@@ -352,7 +343,128 @@ export function useDeleteHighlight(ebookId: string) {
                 queryClient.invalidateQueries({
                     queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, context.pageNumber)
                 });
+            } else if (data?.pageNumber) {
+                queryClient.invalidateQueries({
+                    queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, data.pageNumber)
+                });
             }
         },
     });
+}
+
+// 캐시 업데이트 헬퍼 함수
+function updateHighlightCache(
+    queryClient: any,
+    ebookId: string,
+    highlight: Highlight,
+    action: 'add' | 'update' | 'delete'
+) {
+    const queryData = queryClient.getQueryData<{
+        pages: { highlights: Highlight[] }[];
+        pageParams: number[];
+    }>(EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId));
+
+    if (!queryData) return;
+
+    let updatedPages;
+
+    switch (action) {
+        case 'add':
+            // 첫 페이지에 새 하이라이트 추가
+            updatedPages = queryData.pages.map((page, index) => {
+                if (index === 0) {
+                    return {
+                        ...page,
+                        highlights: [highlight, ...page.highlights]
+                    };
+                }
+                return page;
+            });
+            break;
+
+        case 'update':
+            // 모든 페이지에서 하이라이트 업데이트
+            updatedPages = queryData.pages.map(page => ({
+                ...page,
+                highlights: page.highlights.map(h =>
+                    h.id === highlight.id ? highlight : h
+                )
+            }));
+            break;
+
+        case 'delete':
+            // 모든 페이지에서 하이라이트 삭제
+            updatedPages = queryData.pages.map(page => ({
+                ...page,
+                highlights: page.highlights.filter(h => h.id !== highlight.id)
+            }));
+            break;
+    }
+
+    queryClient.setQueryData(
+        EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId),
+        {
+            ...queryData,
+            pages: updatedPages
+        }
+    );
+}
+
+// 페이지별 캐시 업데이트 헬퍼 함수
+function updateHighlightPageCache(
+    queryClient: any,
+    ebookId: string,
+    highlight: Highlight,
+    action: 'add' | 'update' | 'delete'
+) {
+    const pageNumber = highlight.pageNumber;
+    const queryData = queryClient.getQueryData<{
+        pages: { highlights: Highlight[] }[];
+        pageParams: number[];
+    }>(EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, pageNumber));
+
+    if (!queryData) return;
+
+    let updatedPages;
+
+    switch (action) {
+        case 'add':
+            // 첫 페이지에 새 하이라이트 추가
+            updatedPages = queryData.pages.map((page, index) => {
+                if (index === 0) {
+                    return {
+                        ...page,
+                        highlights: [highlight, ...page.highlights]
+                    };
+                }
+                return page;
+            });
+            break;
+
+        case 'update':
+            // 모든 페이지에서 하이라이트 업데이트
+            updatedPages = queryData.pages.map(page => ({
+                ...page,
+                highlights: page.highlights.map(h =>
+                    h.id === highlight.id ? highlight : h
+                )
+            }));
+            break;
+
+        case 'delete':
+            // 모든 페이지에서 하이라이트 삭제
+            updatedPages = queryData.pages.map(page => ({
+                ...page,
+                highlights: page.highlights.filter(h => h.id !== highlight.id)
+            }));
+            break;
+    }
+
+    queryClient.setQueryData(
+        EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, pageNumber),
+        {
+            ...queryData,
+            pages: updatedPages
+        }
+    );
 } 

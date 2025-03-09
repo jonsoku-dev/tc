@@ -184,6 +184,7 @@ interface EbookReaderSidebarProps {
     onBookmarkClick: (bookmark: BookmarkItem) => void;
     onHighlightClick: (highlight: Highlight) => void;
     onUpdateHighlightNote: (highlightId: string, note: string) => void;
+    onHighlightChange?: () => void;
     className?: string;
 }
 
@@ -197,6 +198,7 @@ export function EbookReaderSidebar({
     onBookmarkClick,
     onHighlightClick,
     onUpdateHighlightNote,
+    onHighlightChange,
     className = "",
 }: EbookReaderSidebarProps) {
     const [activeTab, setActiveTab] = useState("toc");
@@ -233,7 +235,12 @@ export function EbookReaderSidebar({
                             ebookId={ebookId}
                             currentPage={currentPage}
                             onHighlightClick={onHighlightClick}
-                            onUpdateHighlightNote={onUpdateHighlightNote}
+                            onUpdateHighlightNote={(highlightId, note) => {
+                                onUpdateHighlightNote(highlightId, note);
+                                if (onHighlightChange) {
+                                    onHighlightChange();
+                                }
+                            }}
                         />
                     </TabsContent>
                 </Tabs>

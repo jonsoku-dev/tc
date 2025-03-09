@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { EbookPage, Block, Highlight } from "./types";
 import { MarkdownRenderer } from "./markdown-renderer";
 import { TextSelectionMenu } from "./text-selection-menu";
@@ -6,6 +6,8 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "~/common/componen
 import { CalendarIcon, Clock, Edit3, Info } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
+import { useQueryClient } from "@tanstack/react-query";
+import { EBOOK_QUERY_KEYS } from "../constants/query-keys";
 
 interface PageRendererProps {
     page: EbookPage;
@@ -87,25 +89,62 @@ function HighlightedText({ text, highlight }: HighlightedTextProps) {
 
 export function PageRenderer({ page, highlights = [], onTextSelect, className = "" }: PageRendererProps) {
     const pageRef = useRef<HTMLDivElement>(null);
+    const queryClient = useQueryClient();
+    const [renderKey, setRenderKey] = useState(0); // 강제 리렌더링을 위한 상태
+    const [localHighlights, setLocalHighlights] = useState<Highlight[]>(highlights); // 로컬 하이라이트 상태
+
+    // 하이라이트 props가 변경되면 로컬 상태 업데이트
+    useEffect(() => {
+        console.log('하이라이트 props 변경됨:', highlights.length);
+        setLocalHighlights(highlights);
+    }, [highlights]);
 
     // 디버깅을 위한 로그 추가 (개발 환경에서만 활성화)
     if (process.env.NODE_ENV === 'development') {
         // eslint-disable-next-line react-hooks/rules-of-hooks
         useEffect(() => {
-            if (highlights.length > 0) {
-                console.log(`페이지 ${page.page_number}에 ${highlights.length}개의 하이라이트가 있습니다.`);
+            if (localHighlights.length > 0) {
+                console.log(`페이지 ${page.page_number}에 ${localHighlights.length}개의 하이라이트가 있습니다.`);
+                console.log('하이라이트 목록:', localHighlights);
             }
-        }, [highlights, page.page_number]);
+        }, [localHighlights, page.page_number]);
     }
 
+    // 하이라이트 변경 시 페이지 다시 렌더링
+    useEffect(() => {
+        // 하이라이트 변경 감지 시 페이지 다시 렌더링
+        const handleHighlightChange = (event: Event) => {
+            console.log('하이라이트 변경 감지, 페이지 다시 렌더링');
+            // 강제 리렌더링을 위한 상태 업데이트
+            setRenderKey(prev => prev + 1);
+
+            // 하이라이트 쿼리 무효화
+            const ebookId = page.ebook_id;
+            queryClient.invalidateQueries({
+                queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId)
+            });
+
+            queryClient.invalidateQueries({
+                queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, page.page_number)
+            });
+        };
+
+        // 이벤트 리스너 등록
+        window.addEventListener('highlight-change', handleHighlightChange);
+
+        return () => {
+            window.removeEventListener('highlight-change', handleHighlightChange);
+        };
+    }, [page.ebook_id, page.page_number, queryClient]);
+
     // 하이라이트 겹침 확인 함수
-    const checkHighlightOverlap = (
+    const checkHighlightOverlap = useCallback((
         startOffset: number,
         endOffset: number,
         blockId: string | null
     ): boolean => {
         // 현재 페이지의 하이라이트만 필터링
-        const pageHighlights = highlights.filter(h => h.pageNumber === page.page_number);
+        const pageHighlights = localHighlights.filter(h => h.pageNumber === page.page_number);
 
         // 블록 ID가 있는 경우 해당 블록의 하이라이트만 필터링
         const relevantHighlights = blockId
@@ -124,10 +163,10 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
 
             return isOverlapping;
         });
-    };
+    }, [localHighlights, page.page_number]);
 
     // 하이라이트 적용 함수 - 겹치는 하이라이트 처리 개선
-    const applyHighlights = (content: string, blockHighlights: Highlight[], blockId: string) => {
+    const applyHighlights = useCallback((content: string, blockHighlights: Highlight[], blockId: string) => {
         if (!blockHighlights.length) return content;
 
         // 모든 위치에 대한 하이라이트 정보를 저장할 배열
@@ -240,12 +279,12 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
         }
 
         return result;
-    };
+    }, []);
 
     // 블록 렌더링
-    const renderBlock = (block: Block) => {
+    const renderBlock = useCallback((block: Block) => {
         // 현재 블록에 해당하는 하이라이트만 필터링
-        const blockHighlights = highlights.filter(h => {
+        const blockHighlights = localHighlights.filter(h => {
             // 페이지 번호가 일치하고
             const isPageMatch = h.pageNumber === page.page_number;
 
@@ -429,6 +468,28 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
 
                         // 겹치는 하이라이트가 없는 경우에만 추가
                         if (!hasOverlap) {
+                            // 하이라이트 추가 전에 쿼리 캐시 업데이트 준비
+                            const ebookId = page.ebook_id;
+
+                            // 하이라이트 추가 후 캐시 업데이트를 위한 콜백
+                            const onSuccess = (newHighlight: Highlight) => {
+                                // 전체 하이라이트 쿼리 캐시 업데이트
+                                queryClient.invalidateQueries({
+                                    queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId)
+                                });
+
+                                // 현재 페이지 하이라이트 쿼리 캐시 업데이트
+                                queryClient.invalidateQueries({
+                                    queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, page.page_number)
+                                });
+
+                                // 하이라이트 변경 이벤트 발생
+                                window.dispatchEvent(new CustomEvent('highlight-change', {
+                                    detail: { type: 'add', highlight: newHighlight }
+                                }));
+                            };
+
+                            // 하이라이트 추가 및 콜백 전달
                             onTextSelect({
                                 text: highlight.text,
                                 startOffset: highlight.startOffset,
@@ -449,15 +510,15 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                 {renderBlockContent()}
             </TextSelectionMenu>
         );
-    };
+    }, [localHighlights, page, onTextSelect, applyHighlights, checkHighlightOverlap, queryClient]);
 
     return (
-        <div ref={pageRef} className={`page-renderer ${className}`}>
+        <div ref={pageRef} className={`page-renderer ${className}`} key={renderKey}>
             {page.title && <h2 className="text-xl font-bold mb-4">{page.title}</h2>}
 
             <div className="blocks-container">
                 {page.blocks.map((block, index) => (
-                    <div key={block.id || index} className="block-wrapper">
+                    <div key={`${block.id || index}-${renderKey}`} className="block-wrapper">
                         {renderBlock(block)}
                     </div>
                 ))}

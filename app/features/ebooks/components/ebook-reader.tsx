@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router";
 import { EbookReaderSidebar } from "./ebook-reader-sidebar";
 import { PageRenderer } from "./page-renderer";
@@ -28,10 +28,41 @@ export function EbookReader({
     const [currentPage, setCurrentPage] = useState(initialPage);
     const [activeItemId, setActiveItemId] = useState<string | null>(null);
     const queryClient = useQueryClient();
+    const [forceUpdate, setForceUpdate] = useState(0); // 강제 업데이트를 위한 상태
 
     // Tanstack Query를 사용하여 하이라이트 데이터 가져오기
-    const { highlights: currentPageHighlights } = useHighlights(ebookId, currentPage);
+    const { highlights: allHighlights, refetch: refetchAllHighlights } = useHighlights(ebookId);
+    const {
+        highlights: currentPageHighlights,
+        refetch: refetchPageHighlights
+    } = useHighlights(ebookId, currentPage);
     const createHighlightMutation = useCreateHighlight(ebookId);
+
+    // 하이라이트 데이터 변경 감지 및 강제 업데이트
+    useEffect(() => {
+        // 하이라이트 변경 이벤트 핸들러
+        const handleHighlightChange = () => {
+            console.log('하이라이트 변경 감지, 데이터 다시 가져오기');
+            // 하이라이트 데이터 다시 가져오기
+            refetchAllHighlights();
+            refetchPageHighlights();
+            // 강제 업데이트
+            setForceUpdate(prev => prev + 1);
+        };
+
+        // 이벤트 리스너 등록
+        window.addEventListener('highlight-change', handleHighlightChange);
+
+        return () => {
+            window.removeEventListener('highlight-change', handleHighlightChange);
+        };
+    }, [refetchAllHighlights, refetchPageHighlights]);
+
+    // 메모이제이션된 현재 페이지 하이라이트
+    const memoizedCurrentPageHighlights = useMemo(() => {
+        console.log('현재 페이지 하이라이트 메모이제이션:', currentPageHighlights);
+        return currentPageHighlights || [];
+    }, [currentPageHighlights, forceUpdate]); // forceUpdate가 변경되면 다시 계산
 
     // 페이지 변경 핸들러
     const handlePageChange = useCallback((pageNumber: number) => {
@@ -68,6 +99,8 @@ export function EbookReader({
     // 하이라이트 노트 업데이트 핸들러
     const handleUpdateHighlightNote = useCallback((highlightId: string, note: string) => {
         // 하이라이트 노트 업데이트는 highlight-tab.tsx에서 처리
+        // 업데이트 후 강제 업데이트
+        setForceUpdate(prev => prev + 1);
     }, []);
 
     // 텍스트 선택 핸들러 (하이라이트 추가)
@@ -89,8 +122,35 @@ export function EbookReader({
             blockId: selection.blockId || undefined,
             blockType: selection.blockType || undefined,
             color: selection.color || "#FFEB3B",
+        }, {
+            onSuccess: (newHighlight) => {
+                // 하이라이트 추가 성공 시 쿼리 무효화
+                queryClient.invalidateQueries({
+                    queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS(ebookId)
+                });
+
+                // 현재 페이지 하이라이트 쿼리 무효화
+                queryClient.invalidateQueries({
+                    queryKey: EBOOK_QUERY_KEYS.HIGHLIGHTS_BY_PAGE(ebookId, currentPage)
+                });
+
+                console.log("하이라이트 추가 성공:", newHighlight);
+
+                // 하이라이트 변경 이벤트 발생
+                window.dispatchEvent(new CustomEvent('highlight-change'));
+
+                // 강제 업데이트
+                setForceUpdate(prev => prev + 1);
+
+                // 데이터 다시 가져오기
+                refetchPageHighlights();
+            },
+            onError: (error) => {
+                console.error("하이라이트 추가 오류:", error);
+                alert("하이라이트 추가 중 오류가 발생했습니다.");
+            }
         });
-    }, [createHighlightMutation]);
+    }, [createHighlightMutation, ebookId, currentPage, queryClient, refetchPageHighlights]);
 
     // 현재 페이지 컴포넌트
     const currentPageComponent = pages.find(p => p.page_number === currentPage);
@@ -137,6 +197,13 @@ export function EbookReader({
         }
     }, [pages.length, currentPage]);
 
+    // 디버깅을 위한 로그
+    useEffect(() => {
+        if (memoizedCurrentPageHighlights.length > 0) {
+            console.log(`현재 페이지(${currentPage})의 하이라이트 수: ${memoizedCurrentPageHighlights.length}`);
+        }
+    }, [memoizedCurrentPageHighlights, currentPage]);
+
     return (
         <div className="flex h-full">
             <EbookReaderSidebar
@@ -150,6 +217,12 @@ export function EbookReader({
                 onHighlightClick={handleHighlightClick}
                 onUpdateHighlightNote={handleUpdateHighlightNote}
                 className="w-80 border-r"
+                onHighlightChange={() => {
+                    // 하이라이트 변경 시 강제 업데이트
+                    setForceUpdate(prev => prev + 1);
+                    // 데이터 다시 가져오기
+                    refetchPageHighlights();
+                }}
             />
             <div className="flex-1 overflow-auto p-8 flex flex-col items-center">
                 <div className="max-w-3xl w-full">
@@ -175,8 +248,9 @@ export function EbookReader({
                                 </button>
                             </div>
                             <PageRenderer
+                                key={`page-${currentPage}-highlights-${forceUpdate}`} // 강제 리렌더링을 위한 키
                                 page={currentPageComponent}
-                                highlights={currentPageHighlights}
+                                highlights={memoizedCurrentPageHighlights}
                                 onTextSelect={handleTextSelect}
                                 className="bg-white shadow-md rounded-lg p-8"
                             />
