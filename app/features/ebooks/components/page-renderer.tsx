@@ -13,6 +13,7 @@ interface PageRendererProps {
     page: EbookPage;
     highlights?: Highlight[];
     onTextSelect?: (selection: { text: string; startOffset: number; endOffset: number; pageNumber: number; blockId: string | null; blockType: string | null; color?: string }) => void;
+    onDeleteHighlight?: (highlightId: string) => void;
     className?: string;
 }
 
@@ -20,9 +21,10 @@ interface PageRendererProps {
 interface HighlightedTextProps {
     text: string;
     highlight: Highlight;
+    onDelete?: (highlightId: string) => void;
 }
 
-function HighlightedText({ text, highlight }: HighlightedTextProps) {
+function HighlightedText({ text, highlight, onDelete }: HighlightedTextProps) {
     // 유효한 하이라이트인지 확인
     const isValidHighlight = highlight && highlight.id && highlight.color;
 
@@ -30,6 +32,16 @@ function HighlightedText({ text, highlight }: HighlightedTextProps) {
     if (!isValidHighlight) {
         return <span>{text}</span>;
     }
+
+    // 하이라이트 삭제 핸들러
+    const handleDelete = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (onDelete && highlight.id) {
+            console.log('HighlightedText에서 하이라이트 삭제 요청:', highlight.id);
+            onDelete(highlight.id);
+        }
+    };
 
     // HoverCard를 사용하여 하이라이트 정보 표시
     return (
@@ -53,9 +65,20 @@ function HighlightedText({ text, highlight }: HighlightedTextProps) {
                             />
                             <span className="text-sm font-medium">하이라이트</span>
                         </div>
-                        <div className="flex items-center text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3 mr-1" />
-                            <span>{formatDistanceToNow(highlight.createdAt, { addSuffix: true, locale: ko })}</span>
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3 mr-1" />
+                                <span>{formatDistanceToNow(highlight.createdAt, { addSuffix: true, locale: ko })}</span>
+                            </div>
+                            {onDelete && (
+                                <button
+                                    onClick={handleDelete}
+                                    className="text-xs text-red-500 hover:text-red-700 transition-colors"
+                                    title="하이라이트 삭제"
+                                >
+                                    삭제
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -87,7 +110,7 @@ function HighlightedText({ text, highlight }: HighlightedTextProps) {
     );
 }
 
-export function PageRenderer({ page, highlights = [], onTextSelect, className = "" }: PageRendererProps) {
+export function PageRenderer({ page, highlights = [], onTextSelect, onDeleteHighlight, className = "" }: PageRendererProps) {
     const pageRef = useRef<HTMLDivElement>(null);
     const queryClient = useQueryClient();
     const [renderKey, setRenderKey] = useState(0); // 강제 리렌더링을 위한 상태
@@ -109,6 +132,50 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
             }
         }, [localHighlights, page.page_number]);
     }
+
+    // 하이라이트 삭제 핸들러
+    const handleDeleteHighlight = useCallback((highlightId: string) => {
+        if (onDeleteHighlight) {
+            // 삭제할 하이라이트 찾기
+            const highlightToDelete = localHighlights.find(h => h.id === highlightId);
+
+            if (highlightToDelete) {
+                try {
+                    // 임시 ID로 시작하는 하이라이트는 삭제하지 않음
+                    if (highlightId.startsWith('temp-')) {
+                        console.warn('임시 하이라이트는 삭제할 수 없습니다:', highlightId);
+                        return;
+                    }
+
+                    console.log('PageRenderer에서 하이라이트 삭제 요청:', highlightId);
+
+                    // 로컬 상태 업데이트 (낙관적 UI 업데이트)
+                    setLocalHighlights(prev => prev.filter(h => h.id !== highlightId));
+
+                    // 부모 컴포넌트에 삭제 요청 전달
+                    onDeleteHighlight(highlightId);
+
+                    // 하이라이트 변경 이벤트 발생 (사이드바와 동기화)
+                    window.dispatchEvent(new CustomEvent('highlight-change', {
+                        detail: { type: 'delete', highlight: highlightToDelete }
+                    }));
+
+                    // 강제 리렌더링
+                    setRenderKey(prev => prev + 1);
+                } catch (error) {
+                    console.error("하이라이트 삭제 중 오류 발생:", error);
+
+                    // 오류 발생 시 로컬 상태 롤백
+                    setLocalHighlights(prev => [...prev, highlightToDelete]);
+
+                    // 사용자에게 오류 알림
+                    alert("하이라이트 삭제 중 오류가 발생했습니다.");
+                }
+            } else {
+                console.warn(`ID가 ${highlightId}인 하이라이트를 찾을 수 없습니다.`);
+            }
+        }
+    }, [localHighlights, onDeleteHighlight]);
 
     // 하이라이트 변경 시 페이지 다시 렌더링
     useEffect(() => {
@@ -245,6 +312,7 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                                 key={`${currentHighlight.id}-${i - currentText.length}`}
                                 text={currentText}
                                 highlight={currentHighlight}
+                                onDelete={handleDeleteHighlight}
                             />
                         );
                     } else {
@@ -271,6 +339,7 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                         key={`${currentHighlight.id}-${content.length - currentText.length}`}
                         text={currentText}
                         highlight={currentHighlight}
+                        onDelete={handleDeleteHighlight}
                     />
                 );
             } else {
@@ -279,7 +348,7 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
         }
 
         return result;
-    }, []);
+    }, [handleDeleteHighlight]);
 
     // 블록 렌더링
     const renderBlock = useCallback((block: Block) => {
@@ -510,7 +579,7 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                 {renderBlockContent()}
             </TextSelectionMenu>
         );
-    }, [localHighlights, page, onTextSelect, applyHighlights, checkHighlightOverlap, queryClient]);
+    }, [localHighlights, page, onTextSelect, onDeleteHighlight, applyHighlights, checkHighlightOverlap, queryClient]);
 
     return (
         <div ref={pageRef} className={`page-renderer ${className}`} key={renderKey}>

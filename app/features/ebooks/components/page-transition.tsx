@@ -6,6 +6,7 @@ interface PageTransitionProps {
     currentPage: number;
     highlights: Highlight[];
     onTextSelect?: (selection: { text: string; startOffset: number; endOffset: number; pageNumber: number; blockId: string | null; blockType: string | null; color?: string }) => void;
+    onDeleteHighlight?: (highlightId: string) => void;
     className?: string;
 }
 
@@ -14,6 +15,7 @@ export function PageTransition({
     currentPage,
     highlights,
     onTextSelect,
+    onDeleteHighlight,
     className = "",
 }: PageTransitionProps) {
     // 현재 페이지 데이터
@@ -27,6 +29,7 @@ export function PageTransition({
                         page={currentPageData}
                         highlights={highlights.filter(h => h.pageNumber === currentPage)}
                         onTextSelect={onTextSelect}
+                        onDeleteHighlight={onDeleteHighlight}
                     />
                 ) : (
                     <div className="flex items-center justify-center h-full">

@@ -13,7 +13,7 @@ export interface Highlight {
 
 export interface BookmarkItem {
     id: string;
-    position: number;
+    position?: number;
     title: string;
     createdAt: Date;
     pageNumber: number;

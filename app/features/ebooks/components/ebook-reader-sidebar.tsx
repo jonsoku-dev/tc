@@ -12,6 +12,8 @@ import { HighlightTab } from "./highlight-tab";
 import { EBOOK_QUERY_KEYS } from "../constants/query-keys";
 import type { Highlight } from "./types";
 import { useBookmarks, useCreateBookmark, useDeleteBookmark } from "../hooks/use-bookmark-api";
+import { Alert, AlertDescription, AlertTitle } from "~/common/components/ui/alert";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "~/common/components/ui/dialog";
 
 interface TocItem {
     id: string;
@@ -71,45 +73,99 @@ interface BookmarkTabProps {
 }
 
 function BookmarkTab({ ebookId, currentPage, onBookmarkClick }: BookmarkTabProps) {
-    // Supabase 훅을 사용하여 북마크 데이터 가져오기
+    const [error, setError] = useState<string | null>(null);
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [bookmarkToDelete, setBookmarkToDelete] = useState<string | null>(null);
+
+    // 쿼리 클라이언트 및 북마크 관련 훅
+    const queryClient = useQueryClient();
     const { bookmarks, status, hasNextPage, isFetchingNextPage, fetchNextPage, ref } = useBookmarks(ebookId);
-    const createBookmarkMutation = useCreateBookmark(ebookId);
     const deleteBookmarkMutation = useDeleteBookmark(ebookId);
 
+    // 북마크 삭제 핸들러
     const handleDeleteBookmark = (bookmarkId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (window.confirm("북마크를 삭제하시겠습니까?")) {
-            deleteBookmarkMutation.mutate(bookmarkId);
-        }
+        setBookmarkToDelete(bookmarkId);
+        setShowDeleteDialog(true);
     };
 
-    const handleAddBookmark = () => {
-        const title = prompt("북마크 제목을 입력하세요:");
-        if (title) {
-            createBookmarkMutation.mutate({
-                title,
-                pageNumber: currentPage,
-                position: 0, // 페이지 내 위치 (스크롤 위치 등)
-            });
-        }
+    // 북마크 삭제 확인
+    const confirmDeleteBookmark = () => {
+        if (!bookmarkToDelete) return;
+
+        console.log("북마크 삭제 요청:", bookmarkToDelete);
+        deleteBookmarkMutation.mutate(bookmarkToDelete, {
+            onSuccess: () => {
+                console.log("북마크가 성공적으로 삭제되었습니다.");
+                // 북마크 쿼리 무효화
+                queryClient.invalidateQueries({
+                    queryKey: EBOOK_QUERY_KEYS.BOOKMARKS(ebookId)
+                });
+                setShowDeleteDialog(false);
+                setBookmarkToDelete(null);
+            },
+            onError: (error: any) => {
+                console.error("북마크 삭제 중 오류 발생:", error);
+                setError("북마크 삭제 중 오류가 발생했습니다.");
+                setShowDeleteDialog(false);
+                setBookmarkToDelete(null);
+            }
+        });
+    };
+
+    // 북마크 클릭 핸들러 - 페이지 이동
+    const handleBookmarkClick = (bookmark: BookmarkItem) => {
+        console.log("북마크 클릭:", bookmark);
+        onBookmarkClick(bookmark);
     };
 
     if (status === "pending") {
         return <div className="text-center py-4">북마크를 불러오는 중...</div>;
     }
 
-    if (status === "error") {
-        return <div className="text-center py-4 text-red-500">북마크를 불러오는 중 오류가 발생했습니다.</div>;
+    if (status === "error" || error) {
+        return (
+            <div className="text-center py-4 text-red-500">
+                {error || "북마크를 불러오는 중 오류가 발생했습니다."}
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => setError(null)}
+                >
+                    다시 시도
+                </Button>
+            </div>
+        );
     }
 
     return (
         <div className="h-full flex flex-col">
+            {/* 북마크 삭제 다이얼로그 */}
+            <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>북마크 삭제</DialogTitle>
+                    </DialogHeader>
+                    <Alert variant="destructive">
+                        <AlertTitle>북마크를 삭제하시겠습니까?</AlertTitle>
+                        <AlertDescription>
+                            이 작업은 되돌릴 수 없습니다.
+                        </AlertDescription>
+                    </Alert>
+                    <DialogFooter className="flex justify-end space-x-2 mt-4">
+                        <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+                            취소
+                        </Button>
+                        <Button variant="destructive" onClick={confirmDeleteBookmark}>
+                            삭제
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <div className="mb-2 flex justify-between items-center">
                 <div className="text-sm font-medium">북마크 ({bookmarks.length})</div>
-                <Button variant="outline" size="sm" onClick={handleAddBookmark}>
-                    <Bookmark className="h-4 w-4 mr-1" />
-                    <span>현재 페이지 북마크</span>
-                </Button>
             </div>
             <ScrollArea className="flex-1">
                 <div className="space-y-2 p-1">
@@ -126,11 +182,13 @@ function BookmarkTab({ ebookId, currentPage, onBookmarkClick }: BookmarkTabProps
                                         ? "bg-gray-100"
                                         : "hover:bg-gray-100"
                                         }`}
-                                    onClick={() => onBookmarkClick(bookmark)}
+                                    onClick={() => handleBookmarkClick(bookmark)}
                                 >
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center">
-                                            <Bookmark className="h-4 w-4 mr-2 text-primary" />
+                                            <Bookmark
+                                                className="h-4 w-4 mr-2 fill-yellow-500 text-yellow-500"
+                                            />
                                             <div className="text-sm font-medium truncate">
                                                 {bookmark.title}
                                             </div>

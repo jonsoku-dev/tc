@@ -84,13 +84,14 @@ export function useEbookReaderHandlers() {
 
     // 메모이제이션된 핸들러 반환
     return React.useMemo(() => ({
-        handleAddHighlight: (highlight: Omit<Highlight, "id" | "createdAt">) => {
+        handleAddHighlight: (highlight: Highlight) => {
             send({ type: "ADD_HIGHLIGHT", highlight });
         },
         handleAddBookmark: (bookmark: Omit<BookmarkItem, "id" | "createdAt">) => {
             send({ type: "ADD_BOOKMARK", bookmark });
         },
         handleDeleteHighlight: (highlightId: string) => {
+            console.log("Context에서 하이라이트 삭제:", highlightId);
             send({ type: "DELETE_HIGHLIGHT", highlightId });
         },
         handleDeleteBookmark: (bookmarkId: string) => {

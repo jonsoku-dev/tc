@@ -23,7 +23,7 @@ export type EbookReaderEvent =
     | { type: "NEXT_PAGE" }
     | { type: "PREV_PAGE" }
     | { type: "JUMP_TO_PAGE"; pageNumber: number }
-    | { type: "ADD_HIGHLIGHT"; highlight: Omit<Highlight, "id" | "createdAt"> }
+    | { type: "ADD_HIGHLIGHT"; highlight: Highlight }
     | { type: "DELETE_HIGHLIGHT"; highlightId: string }
     | { type: "UPDATE_HIGHLIGHT_NOTE"; highlightId: string; note: string }
     | { type: "ADD_BOOKMARK"; bookmark: Omit<BookmarkItem, "id" | "createdAt"> }
@@ -78,8 +78,8 @@ export const createEbookReaderMachine = setup({
 
             const newHighlight: Highlight = {
                 ...event.highlight,
-                id: `highlight-${Date.now()}`,
-                createdAt: new Date(),
+                id: event.highlight.id || `highlight-${Date.now()}`,
+                createdAt: event.highlight.createdAt || new Date(),
             };
 
             console.log("하이라이트 추가:", newHighlight);
@@ -91,7 +91,7 @@ export const createEbookReaderMachine = setup({
         deleteHighlight: assign(({ context, event }) => {
             if (event.type !== "DELETE_HIGHLIGHT") return {};
 
-            console.log("하이라이트 삭제:", event.highlightId);
+            console.log("Machine에서 하이라이트 삭제:", event.highlightId);
             return {
                 highlights: context.highlights.filter((h) => h.id !== event.highlightId)
             };

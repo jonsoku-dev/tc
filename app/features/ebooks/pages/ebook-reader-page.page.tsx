@@ -331,6 +331,9 @@ function EbookReaderContent({ ebook, tableOfContents }: { ebook: any, tableOfCon
                 throw new Error("사용자 인증이 필요하거나 전자책 정보가 없습니다.");
             }
 
+            console.log("하이라이트 추가:", highlight);
+
+            // Supabase에 하이라이트 추가
             const { data, error } = await supabase
                 .from('highlights')
                 .insert({
@@ -348,13 +351,23 @@ function EbookReaderContent({ ebook, tableOfContents }: { ebook: any, tableOfCon
                 .select()
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                console.error("하이라이트 추가 오류:", error);
+                throw error;
+            }
+
+            if (!data) {
+                throw new Error("하이라이트 추가 후 데이터를 받지 못했습니다.");
+            }
+
+            console.log("추가된 하이라이트:", data);
             return data;
         },
         onSuccess: (data) => {
             // 하이라이트 추가 성공 시 context 업데이트
             if (data) {
-                handlers.handleAddHighlight({
+                const newHighlight: Highlight = {
+                    id: data.highlight_id, // Supabase에서 생성된 UUID 사용
                     text: data.text || "",
                     startOffset: data.start_position,
                     endOffset: data.end_position,
@@ -362,11 +375,19 @@ function EbookReaderContent({ ebook, tableOfContents }: { ebook: any, tableOfCon
                     pageNumber: data.page_number,
                     note: data.note || undefined,
                     blockId: data.block_id || undefined,
-                    blockType: data.block_type || undefined
-                });
+                    blockType: data.block_type || undefined,
+                    createdAt: data.created_at ? new Date(data.created_at) : new Date()
+                };
+
+                handlers.handleAddHighlight(newHighlight);
 
                 // 하이라이트 쿼리 무효화
                 queryClient.invalidateQueries({ queryKey: ['highlights', ebook.ebook_id] });
+
+                // 하이라이트 변경 이벤트 발생 (사이드바와 동기화)
+                window.dispatchEvent(new CustomEvent('highlight-change', {
+                    detail: { type: 'add', highlight: newHighlight }
+                }));
             }
         },
         onError: (error) => {
@@ -377,13 +398,41 @@ function EbookReaderContent({ ebook, tableOfContents }: { ebook: any, tableOfCon
     // 하이라이트 삭제 mutation
     const deleteHighlightMutation = useMutation({
         mutationFn: async (highlightId: string) => {
-            const { error } = await supabase
-                .from('highlights')
-                .delete()
-                .eq('highlight_id', highlightId);
+            try {
+                console.log("Mutation에서 삭제할 하이라이트 ID:", highlightId);
 
-            if (error) throw error;
-            return highlightId;
+                // 먼저 하이라이트 정보 조회
+                const { data: highlightData, error: getError } = await supabase
+                    .from("highlights")
+                    .select("*")
+                    .eq("highlight_id", highlightId)
+                    .single();
+
+                if (getError) {
+                    console.error("하이라이트 정보 조회 오류:", getError);
+                    throw getError;
+                }
+
+                if (!highlightData) {
+                    throw new Error("하이라이트를 찾을 수 없습니다.");
+                }
+
+                // 하이라이트 삭제
+                const { error } = await supabase
+                    .from('highlights')
+                    .delete()
+                    .eq('highlight_id', highlightId);
+
+                if (error) {
+                    console.error("하이라이트 삭제 오류:", error);
+                    throw error;
+                }
+
+                return highlightId;
+            } catch (error) {
+                console.error("하이라이트 삭제 중 오류 발생:", error);
+                throw error;
+            }
         },
         onSuccess: (highlightId) => {
             // 하이라이트 삭제 성공 시 context 업데이트
@@ -438,6 +487,7 @@ function EbookReaderContent({ ebook, tableOfContents }: { ebook: any, tableOfCon
     };
 
     const handleDeleteHighlight = (id: string) => {
+        console.log("EbookReaderPage에서 하이라이트 삭제 요청:", id);
         deleteHighlightMutation.mutate(id);
     };
 

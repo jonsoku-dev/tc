@@ -270,33 +270,44 @@ export function useDeleteHighlight(ebookId: string) {
 
     return useMutation({
         mutationFn: async (highlightId: string) => {
-            // 삭제 전에 하이라이트 정보 가져오기
-            const { data: highlightData, error: getError } = await supabase
-                .from("highlights")
-                .select("page_number, highlight_id")
-                .eq("highlight_id", highlightId)
-                .single();
+            try {
+                console.log("API에서 삭제할 하이라이트 ID:", highlightId);
 
-            if (getError) {
-                console.error("하이라이트 정보 조회 오류:", getError);
-                throw getError;
-            }
+                // 삭제 전에 하이라이트 정보 가져오기
+                const { data: highlightData, error: getError } = await supabase
+                    .from("highlights")
+                    .select("page_number, highlight_id")
+                    .eq("highlight_id", highlightId)
+                    .single();
 
-            const pageNumber = (highlightData as any).page_number;
-            const id = (highlightData as any).highlight_id;
+                if (getError) {
+                    console.error("하이라이트 정보 조회 오류:", getError);
+                    throw getError;
+                }
 
-            // 하이라이트 삭제
-            const { error } = await supabase
-                .from("highlights")
-                .delete()
-                .eq("highlight_id", highlightId);
+                if (!highlightData) {
+                    throw new Error("하이라이트를 찾을 수 없습니다.");
+                }
 
-            if (error) {
-                console.error("하이라이트 삭제 오류:", error);
+                const pageNumber = (highlightData as any).page_number;
+                const id = (highlightData as any).highlight_id;
+
+                // 하이라이트 삭제
+                const { error } = await supabase
+                    .from("highlights")
+                    .delete()
+                    .eq("highlight_id", highlightId);
+
+                if (error) {
+                    console.error("하이라이트 삭제 오류:", error);
+                    throw error;
+                }
+
+                return { id, pageNumber };
+            } catch (error) {
+                console.error("하이라이트 삭제 중 오류 발생:", error);
                 throw error;
             }
-
-            return { id, pageNumber };
         },
         onMutate: async (highlightId) => {
             // 쿼리 취소

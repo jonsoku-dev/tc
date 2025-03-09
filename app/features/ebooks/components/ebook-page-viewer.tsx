@@ -4,6 +4,9 @@ import { EbookReaderToolbar } from "./ebook-reader-toolbar";
 import { PageNavigation } from "./page-navigation";
 import { PageTransition } from "./page-transition";
 import type { BookmarkItem, Ebook, Highlight } from "./types";
+import { useBookmarks } from "../hooks/use-bookmark-api";
+import { useQueryClient } from "@tanstack/react-query";
+import { EBOOK_QUERY_KEYS } from "../constants/query-keys";
 
 interface EbookPageViewerProps {
     ebook: Ebook;
@@ -94,6 +97,12 @@ export function EbookPageViewer({
     onIncreaseLineHeight = () => { },
     onDecreaseLineHeight = () => { },
 }: EbookPageViewerProps) {
+    // 쿼리 클라이언트
+    const queryClient = useQueryClient();
+
+    // 북마크 데이터 가져오기 (실시간 동기화를 위해 직접 훅 사용)
+    const { bookmarks: realtimeBookmarks } = useBookmarks(ebook.ebook_id);
+
     // 현재 페이지 데이터
     const currentPageData = ebook.pages.find(page => page.page_number === currentPage) || ebook.pages[0];
 
@@ -135,6 +144,13 @@ export function EbookPageViewer({
     const addBookmark = () => {
         if (!onAddBookmark) return;
 
+        // 현재 페이지가 이미 북마크되었는지 확인
+        const existingBookmark = bookmarks.find(bookmark => bookmark.pageNumber === currentPage);
+        if (existingBookmark) {
+            console.log("이미 북마크된 페이지입니다:", currentPage);
+            return;
+        }
+
         const newBookmark = {
             position: 0, // 페이지 기반에서는 의미 없음
             title: currentPageData.title || `페이지 ${currentPage}`,
@@ -143,6 +159,23 @@ export function EbookPageViewer({
 
         onAddBookmark(newBookmark);
     };
+
+    // 북마크 삭제
+    const removeBookmark = (bookmarkId: string) => {
+        if (!onDeleteBookmark) return;
+        onDeleteBookmark(bookmarkId);
+    };
+
+    // 현재 페이지의 북마크 확인
+    const currentPageBookmark = realtimeBookmarks.find(bookmark => bookmark.pageNumber === currentPage);
+    const isCurrentPageBookmarked = !!currentPageBookmark;
+
+    // 페이지 변경 시 북마크 상태 업데이트
+    useEffect(() => {
+        // 현재 페이지의 북마크 상태 확인
+        const bookmark = realtimeBookmarks.find(bookmark => bookmark.pageNumber === currentPage);
+        console.log("현재 페이지 북마크 상태:", { currentPage, isBookmarked: !!bookmark, bookmark });
+    }, [currentPage, realtimeBookmarks]);
 
     // 목차 아이템 클릭 처리
     const handleTocItemClick = (item: SidebarTocItem) => {
@@ -251,13 +284,15 @@ export function EbookPageViewer({
                         totalPages={ebook.page_count}
                         fontSize={fontSize}
                         lineHeight={lineHeight}
+                        ebookId={ebook.ebook_id}
                         onToggleSidebar={onToggleSidebar}
-                        onAddBookmark={addBookmark}
                         onIncreaseFontSize={onIncreaseFontSize}
                         onDecreaseFontSize={onDecreaseFontSize}
                         onIncreaseLineHeight={onIncreaseLineHeight}
                         onDecreaseLineHeight={onDecreaseLineHeight}
                         onGoBack={onGoBack}
+                        isCurrentPageBookmarked={isCurrentPageBookmarked}
+                        currentPageBookmarkId={currentPageBookmark?.id || ""}
                     />
                 </div>
 
@@ -272,6 +307,7 @@ export function EbookPageViewer({
                             currentPage={currentPage}
                             highlights={highlights}
                             onTextSelect={handleTextSelect}
+                            onDeleteHighlight={onDeleteHighlight}
                         />
                     </div>
                 </div>
