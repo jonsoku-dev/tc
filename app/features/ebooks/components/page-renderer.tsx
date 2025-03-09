@@ -88,12 +88,15 @@ function HighlightedText({ text, highlight }: HighlightedTextProps) {
 export function PageRenderer({ page, highlights = [], onTextSelect, className = "" }: PageRendererProps) {
     const pageRef = useRef<HTMLDivElement>(null);
 
-    // 디버깅을 위한 로그 추가
-    useEffect(() => {
-        if (highlights.length > 0) {
-            console.log(`페이지 ${page.page_number}에 ${highlights.length}개의 하이라이트가 있습니다.`);
-        }
-    }, [highlights, page.page_number]);
+    // 디버깅을 위한 로그 추가 (개발 환경에서만 활성화)
+    if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        useEffect(() => {
+            if (highlights.length > 0) {
+                console.log(`페이지 ${page.page_number}에 ${highlights.length}개의 하이라이트가 있습니다.`);
+            }
+        }, [highlights, page.page_number]);
+    }
 
     // 하이라이트 겹침 확인 함수
     const checkHighlightOverlap = (
