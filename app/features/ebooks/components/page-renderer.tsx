@@ -60,9 +60,8 @@ function HighlightedText({ text, highlight, onDelete }: HighlightedTextProps) {
         }
     };
 
-    // HoverCard를 사용하여 하이라이트 정보 표시
     return (
-        <HoverCard openDelay={300} closeDelay={200}>
+        <HoverCard>
             <HoverCardTrigger asChild>
                 <span
                     className="rounded px-0.5 cursor-pointer"
@@ -72,21 +71,21 @@ function HighlightedText({ text, highlight, onDelete }: HighlightedTextProps) {
                     {text}
                 </span>
             </HoverCardTrigger>
-            <HoverCardContent className="w-80 p-4">
-                <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                            <div
-                                className="h-4 w-4 rounded-full mr-2"
+            <HoverCardContent className="w-64 p-3 z-50">
+                <span className="space-y-2">
+                    <span className="flex items-center justify-between">
+                        <span className="flex items-center">
+                            <span
+                                className="inline-block h-4 w-4 rounded-full mr-2"
                                 style={{ backgroundColor: highlight.color }}
                             />
                             <span className="text-sm font-medium">하이라이트</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="flex items-center text-xs text-muted-foreground">
+                        </span>
+                        <span className="flex items-center gap-2">
+                            <span className="flex items-center text-xs text-muted-foreground">
                                 <Clock className="h-3 w-3 mr-1" />
                                 <span>{formatDistanceToNow(highlight.createdAt, { addSuffix: true, locale: ko })}</span>
-                            </div>
+                            </span>
                             {onDelete && (
                                 <button
                                     onClick={handleDelete}
@@ -96,32 +95,32 @@ function HighlightedText({ text, highlight, onDelete }: HighlightedTextProps) {
                                     삭제
                                 </button>
                             )}
-                        </div>
-                    </div>
+                        </span>
+                    </span>
 
-                    <div className="text-sm border-l-2 pl-2 py-1" style={{ borderColor: highlight.color }}>
+                    <span className="block text-sm border-l-2 pl-2 py-1" style={{ borderColor: highlight.color }}>
                         {text}
-                    </div>
+                    </span>
 
                     {highlight.note && (
-                        <div className="mt-2">
-                            <div className="flex items-center text-xs text-muted-foreground mb-1">
+                        <span className="block mt-2">
+                            <span className="flex items-center text-xs text-muted-foreground mb-1">
                                 <Edit3 className="h-3 w-3 mr-1" />
                                 <span>노트</span>
-                            </div>
-                            <div className="text-sm bg-muted p-2 rounded">
+                            </span>
+                            <span className="block text-sm bg-muted p-2 rounded">
                                 {highlight.note}
-                            </div>
-                        </div>
+                            </span>
+                        </span>
                     )}
 
                     {highlight.blockType && (
-                        <div className="flex items-center text-xs text-muted-foreground mt-2">
+                        <span className="flex items-center text-xs text-muted-foreground mt-2">
                             <Info className="h-3 w-3 mr-1" />
                             <span>블록 타입: {highlight.blockType}</span>
-                        </div>
+                        </span>
                     )}
-                </div>
+                </span>
             </HoverCardContent>
         </HoverCard>
     );
@@ -153,28 +152,33 @@ function SearchResultText({ text, isActive, searchIndex, blockId }: SearchResult
         }
     }, [isActive]);
 
-    // 하이라이트 스타일 정의
+    // 하이라이트 스타일 설정
     const highlightStyle = {
-        // 항상 적용되는 스타일
-        display: 'inline-block',
         position: 'relative' as const,
-        borderRadius: '2px',
-        padding: '0 2px',
-        margin: '0 -2px',
-        transition: 'all 0.3s ease',
-
-        // 활성화 여부에 따른 스타일
+        display: 'inline' as const,
         ...(highlight ? {
-            backgroundColor: 'rgba(0, 123, 255, 0.3)',  // 파란색 배경 (반투명)
-            boxShadow: '0 0 0 2px rgba(0, 123, 255, 0.5)',  // 파란색 테두리
-            color: 'inherit',
+            backgroundColor: 'rgba(0, 123, 255, 0.3)',  // 연한 파란색
+            borderBottom: '2px solid rgba(0, 123, 255, 0.8)',
+            borderRadius: '2px',
+            padding: '0 1px',
             zIndex: 5,  // 사용자 하이라이트보다 위에 표시
         } : {
             // 비활성화 상태에서도 미세한 표시를 남김
             backgroundColor: 'rgba(0, 123, 255, 0.1)',  // 매우 연한 파란색
-            boxShadow: 'none',
+            padding: '0 1px',
         })
     };
+
+    // 애니메이션 스타일
+    const animationStyle = highlight ? {
+        position: 'absolute' as const,
+        bottom: '-1px',
+        left: 0,
+        width: '100%',
+        height: '2px',
+        backgroundColor: 'rgb(59, 130, 246)',
+        animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+    } : {};
 
     return (
         <span
@@ -185,12 +189,7 @@ function SearchResultText({ text, isActive, searchIndex, blockId }: SearchResult
         >
             {text}
             {highlight && (
-                <span
-                    className="absolute -bottom-1 left-0 w-full h-0.5 bg-blue-500 animate-pulse"
-                    style={{
-                        animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
-                    }}
-                />
+                <span style={animationStyle} />
             )}
         </span>
     );
@@ -563,7 +562,7 @@ export function PageRenderer({
             switch (block.type) {
                 case "paragraph":
                     return (
-                        <p
+                        <div
                             className="my-4"
                             data-block-id={block.id}
                             data-block-type={block.type}
@@ -576,7 +575,7 @@ export function PageRenderer({
                             }}
                         >
                             {applyHighlights(block.content, blockHighlights, block.id)}
-                        </p>
+                        </div>
                     );
                 case "heading":
                     const headingContent = applyHighlights(block.content, blockHighlights, block.id);

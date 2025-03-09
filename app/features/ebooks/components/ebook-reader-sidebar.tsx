@@ -36,28 +36,55 @@ interface TocTabProps {
     currentPage: number;
     activeItemId: string | null;
     onTocItemClick: (item: TocItem) => void;
+    theme?: 'light' | 'dark' | 'sepia';
 }
 
-function TocTab({ tocItems, currentPage, activeItemId, onTocItemClick }: TocTabProps) {
+function TocTab({ tocItems, currentPage, activeItemId, onTocItemClick, theme = 'light' }: TocTabProps) {
+    // 테마에 따른 항목 스타일 설정
+    const getItemThemeStyles = (isActive = false, isCurrent = false) => {
+        switch (theme) {
+            case 'dark':
+                return isActive
+                    ? 'bg-blue-900/30 text-blue-300 border-l-4 border-blue-500'
+                    : isCurrent
+                        ? 'bg-gray-800 text-gray-200'
+                        : 'hover:bg-gray-800 text-gray-300';
+            case 'sepia':
+                return isActive
+                    ? 'bg-amber-200 text-amber-900 border-l-4 border-amber-600'
+                    : isCurrent
+                        ? 'bg-amber-100 text-amber-900'
+                        : 'hover:bg-amber-100 text-amber-800';
+            default:
+                return isActive
+                    ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-500'
+                    : isCurrent
+                        ? 'bg-gray-100 text-gray-900'
+                        : 'hover:bg-gray-100 text-gray-700';
+        }
+    };
+
     return (
         <ScrollArea className="h-full">
-            <div className="space-y-1 p-1 pb-4">
+            <div className="space-y-0.5 p-3">
                 {tocItems.length === 0 ? (
-                    <div className="text-center py-4 text-gray-500">목차가 없습니다.</div>
+                    <div className={`text-center py-6 ${theme === 'dark' ? 'text-gray-400' : theme === 'sepia' ? 'text-amber-700' : 'text-gray-500'}`}>
+                        목차가 없습니다.
+                    </div>
                 ) : (
                     tocItems.map((item) => (
                         <div
                             key={item.id}
-                            className={`flex items-center py-2 px-3 rounded cursor-pointer ${activeItemId === item.id
-                                ? "bg-primary/10 text-primary"
-                                : item.pageNumber === currentPage
-                                    ? "bg-gray-100"
-                                    : "hover:bg-gray-100"
-                                }`}
-                            style={{ paddingLeft: `${(item.level - 1) * 1}rem` }}
+                            className={`flex items-center py-2.5 px-3 rounded-md cursor-pointer transition-colors duration-200 ${getItemThemeStyles(activeItemId === item.id, item.pageNumber === currentPage)}`}
+                            style={{ paddingLeft: `${(item.level - 1) * 0.75}rem` }}
                             onClick={() => onTocItemClick(item)}
                         >
-                            <span>{item.title}</span>
+                            <span className="truncate text-sm">{item.title}</span>
+                            {item.pageNumber === currentPage && (
+                                <span className={`ml-auto text-xs px-1.5 py-0.5 rounded-full ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : theme === 'sepia' ? 'bg-amber-200 text-amber-800' : 'bg-gray-200 text-gray-700'}`}>
+                                    현재
+                                </span>
+                            )}
                         </div>
                     ))
                 )}
@@ -70,80 +97,112 @@ interface BookmarkTabProps {
     ebookId: string;
     currentPage: number;
     onBookmarkClick: (bookmark: BookmarkItem) => void;
+    theme?: 'light' | 'dark' | 'sepia';
 }
 
-function BookmarkTab({ ebookId, currentPage, onBookmarkClick }: BookmarkTabProps) {
-    const [error, setError] = useState<string | null>(null);
+function BookmarkTab({ ebookId, currentPage, onBookmarkClick, theme = 'light' }: BookmarkTabProps) {
+    const { data, status } = useBookmarks(ebookId);
+    const deleteBookmarkMutation = useDeleteBookmark(ebookId);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [bookmarkToDelete, setBookmarkToDelete] = useState<string | null>(null);
 
-    // 쿼리 클라이언트 및 북마크 관련 훅
-    const queryClient = useQueryClient();
-    const { bookmarks, status, hasNextPage, isFetchingNextPage, fetchNextPage, ref } = useBookmarks(ebookId);
-    const deleteBookmarkMutation = useDeleteBookmark(ebookId);
+    // 북마크 데이터 추출
+    const bookmarks = data?.pages?.[0]?.bookmarks || [];
+    const isLoading = status === 'pending';
+    const hasError = status === 'error';
 
-    // 북마크 삭제 핸들러
+    // 테마에 따른 항목 스타일 설정
+    const getItemThemeStyles = (isCurrent = false) => {
+        switch (theme) {
+            case 'dark':
+                return isCurrent
+                    ? 'bg-gray-800 text-gray-200 border-l-4 border-yellow-500'
+                    : 'hover:bg-gray-800 text-gray-300';
+            case 'sepia':
+                return isCurrent
+                    ? 'bg-amber-100 text-amber-900 border-l-4 border-yellow-600'
+                    : 'hover:bg-amber-100 text-amber-800';
+            default:
+                return isCurrent
+                    ? 'bg-yellow-50 text-gray-900 border-l-4 border-yellow-500'
+                    : 'hover:bg-gray-100 text-gray-700';
+        }
+    };
+
     const handleDeleteBookmark = (bookmarkId: string, e: React.MouseEvent) => {
         e.stopPropagation();
         setBookmarkToDelete(bookmarkId);
         setShowDeleteDialog(true);
     };
 
-    // 북마크 삭제 확인
     const confirmDeleteBookmark = () => {
-        if (!bookmarkToDelete) return;
-
-        console.log("북마크 삭제 요청:", bookmarkToDelete);
-        deleteBookmarkMutation.mutate(bookmarkToDelete, {
-            onSuccess: () => {
-                console.log("북마크가 성공적으로 삭제되었습니다.");
-                // 북마크 쿼리 무효화
-                queryClient.invalidateQueries({
-                    queryKey: EBOOK_QUERY_KEYS.BOOKMARKS(ebookId)
-                });
-                setShowDeleteDialog(false);
-                setBookmarkToDelete(null);
-            },
-            onError: (error: any) => {
-                console.error("북마크 삭제 중 오류 발생:", error);
-                setError("북마크 삭제 중 오류가 발생했습니다.");
-                setShowDeleteDialog(false);
-                setBookmarkToDelete(null);
-            }
-        });
+        if (bookmarkToDelete) {
+            deleteBookmarkMutation.mutate(bookmarkToDelete);
+            setShowDeleteDialog(false);
+            setBookmarkToDelete(null);
+        }
     };
 
-    // 북마크 클릭 핸들러 - 페이지 이동
     const handleBookmarkClick = (bookmark: BookmarkItem) => {
-        console.log("북마크 클릭:", bookmark);
         onBookmarkClick(bookmark);
     };
 
-    if (status === "pending") {
-        return <div className="text-center py-4">북마크를 불러오는 중...</div>;
+    if (isLoading) {
+        return (
+            <div className={`flex justify-center items-center h-full ${theme === 'dark' ? 'text-gray-400' : theme === 'sepia' ? 'text-amber-700' : 'text-gray-500'}`}>
+                북마크 로딩 중...
+            </div>
+        );
     }
 
-    if (status === "error" || error) {
+    if (hasError) {
         return (
-            <div className="text-center py-4 text-red-500">
-                {error || "북마크를 불러오는 중 오류가 발생했습니다."}
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                    onClick={() => setError(null)}
-                >
-                    다시 시도
-                </Button>
+            <div className={`text-center py-4 ${theme === 'dark' ? 'text-red-400' : theme === 'sepia' ? 'text-red-700' : 'text-red-500'}`}>
+                북마크를 불러오는 중 오류가 발생했습니다.
             </div>
         );
     }
 
     return (
         <div className="h-full flex flex-col">
-            {/* 북마크 삭제 다이얼로그 */}
+            <ScrollArea className="flex-1">
+                <div className="space-y-1 p-1 pb-4">
+                    {bookmarks.length === 0 ? (
+                        <div className={`text-center py-4 ${theme === 'dark' ? 'text-gray-400' : theme === 'sepia' ? 'text-amber-700' : 'text-gray-500'}`}>
+                            북마크가 없습니다.
+                        </div>
+                    ) : (
+                        bookmarks.map((bookmark) => (
+                            <div
+                                key={bookmark.id}
+                                className={`flex items-center justify-between py-2 px-3 rounded-md cursor-pointer transition-colors duration-200 ${getItemThemeStyles(bookmark.pageNumber === currentPage)}`}
+                                onClick={() => handleBookmarkClick(bookmark)}
+                            >
+                                <div className="flex items-center space-x-2 flex-1 min-w-0">
+                                    <Bookmark className={`h-4 w-4 ${theme === 'dark' ? 'text-yellow-400' : 'text-yellow-500'} flex-shrink-0`} />
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="truncate">{bookmark.title || `페이지 ${bookmark.pageNumber}`}</span>
+                                        <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : theme === 'sepia' ? 'text-amber-700' : 'text-gray-500'}`}>
+                                            {new Date(bookmark.createdAt).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className={`h-7 w-7 ml-2 ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400 hover:text-red-400' : theme === 'sepia' ? 'hover:bg-amber-200 text-amber-700 hover:text-red-600' : 'hover:bg-gray-200 text-gray-500 hover:text-red-500'}`}
+                                    onClick={(e) => handleDeleteBookmark(bookmark.id, e)}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </ScrollArea>
+
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className={theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : theme === 'sepia' ? 'bg-amber-50 text-gray-900 border-amber-200' : ''}>
                     <DialogHeader>
                         <DialogTitle>북마크 삭제</DialogTitle>
                     </DialogHeader>
@@ -163,71 +222,6 @@ function BookmarkTab({ ebookId, currentPage, onBookmarkClick }: BookmarkTabProps
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-
-            <div className="mb-2 flex justify-between items-center">
-                <div className="text-sm font-medium">북마크 ({bookmarks.length})</div>
-            </div>
-            <ScrollArea className="flex-1">
-                <div className="space-y-2 p-1">
-                    {bookmarks.length === 0 ? (
-                        <div className="text-center py-4 text-gray-500">
-                            북마크가 없습니다.
-                        </div>
-                    ) : (
-                        <>
-                            {bookmarks.map((bookmark) => (
-                                <div
-                                    key={bookmark.id}
-                                    className={`py-2 px-3 rounded cursor-pointer ${bookmark.pageNumber === currentPage
-                                        ? "bg-gray-100"
-                                        : "hover:bg-gray-100"
-                                        }`}
-                                    onClick={() => handleBookmarkClick(bookmark)}
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center">
-                                            <Bookmark
-                                                className="h-4 w-4 mr-2 fill-yellow-500 text-yellow-500"
-                                            />
-                                            <div className="text-sm font-medium truncate">
-                                                {bookmark.title}
-                                            </div>
-                                        </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-6 w-6 text-red-500"
-                                            onClick={(e) => handleDeleteBookmark(bookmark.id, e)}
-                                        >
-                                            <Trash2 className="h-3 w-3" />
-                                        </Button>
-                                    </div>
-                                    <div className="text-xs text-gray-500 mt-1">
-                                        페이지: {bookmark.pageNumber}
-                                    </div>
-                                </div>
-                            ))}
-
-                            <div ref={ref} className="py-2 text-center mb-4">
-                                {isFetchingNextPage ? (
-                                    <div className="text-sm text-gray-500">더 불러오는 중...</div>
-                                ) : hasNextPage ? (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-sm text-gray-500"
-                                        onClick={() => fetchNextPage()}
-                                    >
-                                        더 보기 <ChevronDown className="ml-1 h-4 w-4" />
-                                    </Button>
-                                ) : bookmarks.length > 0 ? (
-                                    <div className="text-sm text-gray-500">모든 북마크를 불러왔습니다.</div>
-                                ) : null}
-                            </div>
-                        </>
-                    )}
-                </div>
-            </ScrollArea>
         </div>
     );
 }
@@ -275,17 +269,47 @@ export function EbookReaderSidebar({
         }
     };
 
+    // 테마에 따른 탭 스타일 설정
+    const getTabThemeStyles = () => {
+        switch (theme) {
+            case 'dark':
+                return 'bg-gray-800 data-[state=active]:bg-gray-700 data-[state=active]:text-white';
+            case 'sepia':
+                return 'bg-amber-100 data-[state=active]:bg-amber-200 data-[state=active]:text-amber-900';
+            default:
+                return 'bg-gray-100 data-[state=active]:bg-white data-[state=active]:text-gray-900';
+        }
+    };
+
+    // 테마에 따른 항목 스타일 설정
+    const getItemThemeStyles = (isActive = false) => {
+        switch (theme) {
+            case 'dark':
+                return isActive
+                    ? 'bg-gray-800 border-l-4 border-blue-500'
+                    : 'hover:bg-gray-800';
+            case 'sepia':
+                return isActive
+                    ? 'bg-amber-100 border-l-4 border-amber-600'
+                    : 'hover:bg-amber-100';
+            default:
+                return isActive
+                    ? 'bg-blue-50 border-l-4 border-blue-500'
+                    : 'hover:bg-gray-100';
+        }
+    };
+
     return (
-        <div className={`w-80 h-full border-r overflow-hidden flex flex-col ${getThemeStyles()} ${className}`}>
-            <div className="flex items-center justify-between p-4 border-b">
+        <div className={`w-full h-full border-r overflow-hidden flex flex-col ${getThemeStyles()} ${className} transition-colors duration-300`}>
+            <div className="flex items-center justify-between py-3 px-4 border-b">
                 <h2 className="text-lg font-semibold truncate">{title}</h2>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-                <TabsList className="grid grid-cols-3 mx-4 mt-2">
-                    <TabsTrigger value="toc">목차</TabsTrigger>
-                    <TabsTrigger value="bookmarks">북마크</TabsTrigger>
-                    <TabsTrigger value="highlights">하이라이트</TabsTrigger>
+                <TabsList className={`grid grid-cols-3 mx-4 mt-3 mb-2 rounded-lg ${theme === 'dark' ? 'bg-gray-800' : theme === 'sepia' ? 'bg-amber-100' : ''}`}>
+                    <TabsTrigger value="toc" className={`py-2 rounded-md text-sm font-medium ${getTabThemeStyles()}`}>목차</TabsTrigger>
+                    <TabsTrigger value="bookmarks" className={`py-2 rounded-md text-sm font-medium ${getTabThemeStyles()}`}>북마크</TabsTrigger>
+                    <TabsTrigger value="highlights" className={`py-2 rounded-md text-sm font-medium ${getTabThemeStyles()}`}>하이라이트</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="toc" className="flex-1 overflow-hidden">
@@ -294,6 +318,7 @@ export function EbookReaderSidebar({
                         currentPage={currentPage}
                         activeItemId={activeItemId}
                         onTocItemClick={onTocItemClick}
+                        theme={theme}
                     />
                 </TabsContent>
 
@@ -302,6 +327,7 @@ export function EbookReaderSidebar({
                         ebookId={ebookId}
                         currentPage={currentPage}
                         onBookmarkClick={onBookmarkClick}
+                        theme={theme}
                     />
                 </TabsContent>
 

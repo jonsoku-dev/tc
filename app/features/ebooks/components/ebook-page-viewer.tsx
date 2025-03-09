@@ -310,22 +310,36 @@ export function EbookPageViewer({
         }
     };
 
+    // 테마에 따른 페이지 콘텐츠 스타일 설정
+    const getPageContentStyles = () => {
+        switch (theme) {
+            case 'dark':
+                return 'bg-gray-800 border-gray-700 shadow-lg shadow-black/30';
+            case 'sepia':
+                return 'bg-amber-100 border-amber-200 shadow-lg shadow-amber-300/20';
+            default:
+                return 'bg-white border-gray-200 shadow-lg shadow-gray-200/50';
+        }
+    };
+
     return (
         <div className={`flex h-screen overflow-hidden ${getThemeStyles()} ${className}`}>
             {/* 사이드바 */}
             {sidebarOpen && (
-                <EbookReaderSidebar
-                    title={ebook.title}
-                    ebookId={ebook.ebook_id}
-                    tocItems={tocItems}
-                    currentPage={currentPage}
-                    activeItemId={activeItemId}
-                    onTocItemClick={handleTocItemClick}
-                    onBookmarkClick={handleBookmarkClick}
-                    onHighlightClick={handleHighlightClick}
-                    onUpdateHighlightNote={onUpdateHighlightNote}
-                    theme={theme}
-                />
+                <div className="w-72 h-full border-r flex-shrink-0 transition-all duration-300 ease-in-out">
+                    <EbookReaderSidebar
+                        title={ebook.title}
+                        ebookId={ebook.ebook_id}
+                        tocItems={tocItems}
+                        currentPage={currentPage}
+                        activeItemId={activeItemId}
+                        onTocItemClick={handleTocItemClick}
+                        onBookmarkClick={handleBookmarkClick}
+                        onHighlightClick={handleHighlightClick}
+                        onUpdateHighlightNote={onUpdateHighlightNote}
+                        theme={theme}
+                    />
+                </div>
             )}
 
             {/* 메인 콘텐츠 */}
@@ -365,9 +379,9 @@ export function EbookPageViewer({
                 </div>
 
                 {/* 페이지 콘텐츠 */}
-                <div className={`flex-1 overflow-auto p-4 pb-32 ${getThemeStyles()}`}>
+                <div className={`flex-1 overflow-auto py-6 px-4 pb-32 ${getThemeStyles()} transition-colors duration-300`}>
                     <div
-                        className={`max-w-3xl w-full mx-auto shadow-lg rounded-lg p-8 min-h-[300px] overflow-auto mb-16 ${getThemeStyles()}`}
+                        className={`max-w-3xl w-full mx-auto rounded-xl p-8 min-h-[300px] overflow-auto mb-16 border ${getPageContentStyles()} transition-all duration-300`}
                         style={{
                             fontSize: `${fontSize}px`,
                             lineHeight: lineHeight,
@@ -388,7 +402,7 @@ export function EbookPageViewer({
 
                 {/* 하단 네비게이션 */}
                 <div className="fixed bottom-0 left-0 right-0 z-50 h-[60px]">
-                    <div className={`shadow-lg border-t h-full ${getThemeStyles()}`}>
+                    <div className={`shadow-lg border-t h-full ${getThemeStyles()} transition-colors duration-300`}>
                         <PageNavigation
                             currentPage={currentPage}
                             totalPages={ebook.page_count}

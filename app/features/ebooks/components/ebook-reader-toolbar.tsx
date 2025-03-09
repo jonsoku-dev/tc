@@ -230,11 +230,59 @@ export function EbookReaderToolbar({
     const getThemeStyles = () => {
         switch (theme) {
             case 'dark':
-                return 'bg-gray-900 text-white border-gray-700';
+                return 'bg-gray-900 text-white border-gray-700 shadow-md shadow-gray-800/20';
+            case 'sepia':
+                return 'bg-amber-50 text-gray-900 border-amber-200 shadow-md shadow-amber-200/20';
+            default:
+                return 'bg-white text-gray-900 border-gray-200 shadow-md shadow-gray-200/20';
+        }
+    };
+
+    // 테마에 따른 버튼 스타일 설정
+    const getButtonThemeStyles = (isActive = false) => {
+        switch (theme) {
+            case 'dark':
+                return isActive
+                    ? 'bg-blue-900 text-blue-100 hover:bg-blue-800'
+                    : 'hover:bg-gray-800 text-gray-300 hover:text-white';
+            case 'sepia':
+                return isActive
+                    ? 'bg-amber-200 text-amber-900 hover:bg-amber-300'
+                    : 'hover:bg-amber-100 text-amber-800 hover:text-amber-900';
+            default:
+                return isActive
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    : 'hover:bg-gray-100 text-gray-700 hover:text-gray-900';
+        }
+    };
+
+    // 테마에 따른 다이얼로그 스타일 설정
+    const getDialogThemeStyles = () => {
+        switch (theme) {
+            case 'dark':
+                return 'bg-gray-800 text-white border-gray-700';
             case 'sepia':
                 return 'bg-amber-50 text-gray-900 border-amber-200';
             default:
                 return 'bg-white text-gray-900 border-gray-200';
+        }
+    };
+
+    // 테마에 따른 검색 결과 스타일 설정
+    const getSearchResultThemeStyles = (isActive = false) => {
+        switch (theme) {
+            case 'dark':
+                return isActive
+                    ? 'bg-blue-900 dark:bg-blue-900 border-l-4 border-blue-500'
+                    : 'hover:bg-gray-700';
+            case 'sepia':
+                return isActive
+                    ? 'bg-amber-200 border-l-4 border-amber-500'
+                    : 'hover:bg-amber-100';
+            default:
+                return isActive
+                    ? 'bg-blue-100 border-l-4 border-blue-500'
+                    : 'hover:bg-gray-100';
         }
     };
 
@@ -265,35 +313,34 @@ export function EbookReaderToolbar({
     };
 
     return (
-        <div className={`flex items-center justify-between p-4 border-b w-full ${className}`}>
-            <div className="flex items-center">
+        <div className={`flex items-center justify-between py-2.5 px-4 border-b w-full sticky top-0 z-10 ${getThemeStyles()} ${className}`}>
+            <div className="flex items-center space-x-2">
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button
                                 variant="ghost"
-                                size="icon"
+                                size="sm"
                                 onClick={onGoBack}
-                                className="mr-2"
+                                className={`rounded-full w-8 h-8 p-0 flex items-center justify-center ${getButtonThemeStyles()}`}
                             >
                                 <ArrowLeft className="h-4 w-4" />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent>뒤로가기</TooltipContent>
+                        <TooltipContent side="bottom">뒤로가기</TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
                 <Button
                     variant="ghost"
-                    size="icon"
+                    size="sm"
                     onClick={onToggleSidebar}
-                    className="mr-2"
+                    className={`rounded-full w-8 h-8 p-0 flex items-center justify-center ${getButtonThemeStyles()}`}
                 >
                     <List className="h-4 w-4" />
                 </Button>
-            </div>
-
-            <div className="text-sm text-gray-500">
-                {currentPage} / {totalPages} 페이지
+                <div className="hidden md:block ml-2 font-medium truncate max-w-[300px]" title={title}>
+                    {title}
+                </div>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -304,15 +351,15 @@ export function EbookReaderToolbar({
                             <div className="relative">
                                 <Button
                                     variant={hasActiveSearch ? "secondary" : "ghost"}
-                                    size="icon"
+                                    size="sm"
                                     onClick={handleOpenSearchDialog}
-                                    className={hasActiveSearch ? "bg-blue-100 text-blue-700 hover:bg-blue-200" : ""}
+                                    className={`rounded-full w-8 h-8 p-0 flex items-center justify-center ${hasActiveSearch ? getButtonThemeStyles(true) : getButtonThemeStyles()}`}
                                 >
-                                    <Search className={`h-4 w-4 ${hasActiveSearch ? "text-blue-700" : ""}`} />
+                                    <Search className={`h-4 w-4 ${hasActiveSearch ? "text-blue-700 dark:text-blue-300" : ""}`} />
                                     {hasActiveSearch && (
-                                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                        <span className="absolute -top-1 -right-1 flex h-4 w-4">
                                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                                            <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500 text-[8px] text-white justify-center items-center">
+                                            <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-500 text-[9px] text-white justify-center items-center">
                                                 {searchResults.length}
                                             </span>
                                         </span>
@@ -321,9 +368,9 @@ export function EbookReaderToolbar({
                                 {hasActiveSearch && (
                                     <Button
                                         variant="ghost"
-                                        size="icon"
+                                        size="sm"
                                         onClick={handleClearSearch}
-                                        className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-gray-200 hover:bg-gray-300 p-0"
+                                        className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 p-0 flex items-center justify-center"
                                         title="검색 결과 지우기"
                                     >
                                         <X className="h-3 w-3" />
@@ -331,7 +378,7 @@ export function EbookReaderToolbar({
                                 )}
                             </div>
                         </TooltipTrigger>
-                        <TooltipContent>
+                        <TooltipContent side="bottom">
                             {hasActiveSearch ? "검색 결과 보기" : "검색"}
                         </TooltipContent>
                     </Tooltip>
@@ -342,9 +389,9 @@ export function EbookReaderToolbar({
                         <TooltipTrigger asChild>
                             <Button
                                 variant="ghost"
-                                size="icon"
+                                size="sm"
                                 onClick={handleBookmarkAction}
-                                className={isCurrentPageBookmarked ? "text-yellow-500" : ""}
+                                className={`rounded-full w-8 h-8 p-0 flex items-center justify-center ${isCurrentPageBookmarked ? "text-yellow-500" : getButtonThemeStyles()}`}
                             >
                                 {isCurrentPageBookmarked ? (
                                     <Bookmark className="h-4 w-4 fill-yellow-500 text-yellow-500" />
@@ -353,217 +400,47 @@ export function EbookReaderToolbar({
                                 )}
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent>
+                        <TooltipContent side="bottom">
                             {isCurrentPageBookmarked ? "북마크 삭제" : "북마크 추가"}
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
-
-                {/* 북마크 추가 다이얼로그 */}
-                <Dialog open={showBookmarkDialog} onOpenChange={setShowBookmarkDialog}>
-                    <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                            <DialogTitle>북마크 추가</DialogTitle>
-                        </DialogHeader>
-                        <Alert>
-                            <AlertTitle>북마크를 추가하시겠습니까?</AlertTitle>
-                            <AlertDescription>
-                                현재 페이지({currentPage})에 북마크를 추가합니다.
-                            </AlertDescription>
-                        </Alert>
-                        <DialogFooter className="flex justify-end space-x-2 mt-4">
-                            <Button variant="outline" onClick={() => setShowBookmarkDialog(false)}>
-                                취소
-                            </Button>
-                            <Button onClick={handleConfirmAddBookmark}>
-                                추가
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-
-                {/* 북마크 삭제 다이얼로그 */}
-                <Dialog open={showRemoveBookmarkDialog} onOpenChange={setShowRemoveBookmarkDialog}>
-                    <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                            <DialogTitle>북마크 삭제</DialogTitle>
-                        </DialogHeader>
-                        <Alert variant="destructive">
-                            <AlertTitle>북마크를 삭제하시겠습니까?</AlertTitle>
-                            <AlertDescription>
-                                현재 페이지({currentPage})의 북마크를 삭제합니다.
-                            </AlertDescription>
-                        </Alert>
-                        <DialogFooter className="flex justify-end space-x-2 mt-4">
-                            <Button variant="outline" onClick={() => setShowRemoveBookmarkDialog(false)}>
-                                취소
-                            </Button>
-                            <Button variant="destructive" onClick={handleConfirmRemoveBookmark}>
-                                삭제
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-
-                {/* 검색 다이얼로그 */}
-                <Dialog open={showSearchDialog} onOpenChange={handleCloseSearchDialog}>
-                    <DialogContent className={`sm:max-w-md ${getThemeStyles()}`}>
-                        <DialogHeader>
-                            <DialogTitle>
-                                {hasActiveSearch ? (
-                                    <div className="flex items-center">
-                                        <span>검색 결과: "{searchQuery}"</span>
-                                        <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                            {searchResults.length}개
-                                        </span>
-                                    </div>
-                                ) : (
-                                    "검색"
-                                )}
-                            </DialogTitle>
-                        </DialogHeader>
-                        <div className="mt-4">
-                            <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2 mb-4">
-                                <Input
-                                    type="text"
-                                    placeholder="검색어를 입력하세요"
-                                    value={localSearchQuery}
-                                    onChange={handleSearchInputChange}
-                                    className="flex-1"
-                                    autoFocus
-                                />
-                                <Button type="submit" disabled={isSearching}>
-                                    {isSearching ? (
-                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                    ) : (
-                                        <Search className="h-4 w-4 mr-2" />
-                                    )}
-                                    검색
-                                </Button>
-                                {hasActiveSearch && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={handleClearSearch}
-                                        title="검색 결과 지우기"
-                                    >
-                                        <X className="h-4 w-4" />
-                                    </Button>
-                                )}
-                            </form>
-
-                            {isSearching ? (
-                                <div className="flex items-center justify-center py-8">
-                                    <Loader2 className="h-8 w-8 animate-spin" />
-                                    <span className="ml-2">검색 중...</span>
-                                </div>
-                            ) : searchResults && searchResults.length > 0 ? (
-                                <div>
-                                    <div className="text-sm mb-2 flex justify-between items-center">
-                                        <span>검색 결과: {searchResults.length}개</span>
-                                        <div className="flex items-center space-x-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={onPrevSearchResult}
-                                                disabled={searchResults.length <= 1}
-                                                className="h-7 px-2"
-                                            >
-                                                <ChevronUp className="h-4 w-4" />
-                                            </Button>
-                                            <span className="text-xs">
-                                                {currentSearchIndex + 1}/{searchResults.length}
-                                            </span>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={onNextSearchResult}
-                                                disabled={searchResults.length <= 1}
-                                                className="h-7 px-2"
-                                            >
-                                                <ChevronDown className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    <ScrollArea className="h-[300px]">
-                                        <div className="space-y-2">
-                                            {searchResults.map((result, index) => (
-                                                <div
-                                                    key={`${result.pageNumber}-${result.startOffset}-${result.blockId || 'none'}`}
-                                                    className={`p-2 rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 ${index === currentSearchIndex ? 'bg-blue-100 dark:bg-blue-900 border-l-4 border-blue-500' : ''
-                                                        }`}
-                                                    onClick={() => handleSearchResultClick(result.pageNumber, index)}
-                                                >
-                                                    <div className="flex justify-between mb-1">
-                                                        <span className="text-sm font-medium">페이지 {result.pageNumber}</span>
-                                                        <span className="text-xs text-gray-500">#{index + 1}</span>
-                                                    </div>
-                                                    {result.blockType && (
-                                                        <div className="text-xs text-gray-500 mb-1">
-                                                            {getBlockTypeLabel(result.blockType)}
-                                                        </div>
-                                                    )}
-                                                    <p className="text-sm">
-                                                        ...{result.text}...
-                                                    </p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </ScrollArea>
-                                </div>
-                            ) : localSearchQuery ? (
-                                <div className="text-center py-8">
-                                    <p>검색 결과가 없습니다.</p>
-                                </div>
-                            ) : (
-                                <div className="text-center py-8 text-gray-500">
-                                    <p>검색어를 입력하세요.</p>
-                                </div>
-                            )}
-                        </div>
-                        <DialogFooter className="flex justify-between space-x-2 mt-4">
-                            {hasActiveSearch && (
-                                <Button variant="outline" onClick={handleClearSearch} className="mr-auto">
-                                    검색 결과 지우기
-                                </Button>
-                            )}
-                            <Button variant="outline" onClick={handleCloseSearchDialog}>
-                                닫기
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
 
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Popover>
                                 <PopoverTrigger asChild>
-                                    <Button variant="ghost" size="icon">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className={`rounded-full w-8 h-8 p-0 flex items-center justify-center ${getButtonThemeStyles()}`}
+                                    >
                                         <Settings className="h-4 w-4" />
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-80">
-                                    <div className="space-y-4">
-                                        <h3 className="font-medium">설정</h3>
+                                <PopoverContent className={`w-80 p-4 ${getDialogThemeStyles()}`}>
+                                    <div className="space-y-5">
+                                        <h3 className="font-medium text-base mb-3">설정</h3>
 
                                         {/* 글꼴 크기 설정 */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="font-size">글꼴 크기</Label>
-                                            <div className="flex items-center space-x-2">
+                                        <div className="space-y-3">
+                                            <Label htmlFor="font-size" className="text-sm font-medium">글꼴 크기</Label>
+                                            <div className="flex items-center space-x-3">
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
                                                     onClick={onDecreaseFontSize}
+                                                    className={`w-8 h-8 rounded-full ${getButtonThemeStyles()}`}
                                                 >
                                                     -
                                                 </Button>
-                                                <div className="flex-1 text-center">{fontSize}px</div>
+                                                <div className="flex-1 text-center font-medium">{fontSize}px</div>
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
                                                     onClick={onIncreaseFontSize}
+                                                    className={`w-8 h-8 rounded-full ${getButtonThemeStyles()}`}
                                                 >
                                                     +
                                                 </Button>
@@ -571,21 +448,23 @@ export function EbookReaderToolbar({
                                         </div>
 
                                         {/* 줄 간격 설정 */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="line-height">줄 간격</Label>
-                                            <div className="flex items-center space-x-2">
+                                        <div className="space-y-3">
+                                            <Label htmlFor="line-height" className="text-sm font-medium">줄 간격</Label>
+                                            <div className="flex items-center space-x-3">
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
                                                     onClick={onDecreaseLineHeight}
+                                                    className={`w-8 h-8 rounded-full ${getButtonThemeStyles()}`}
                                                 >
                                                     -
                                                 </Button>
-                                                <div className="flex-1 text-center">{lineHeight.toFixed(1)}</div>
+                                                <div className="flex-1 text-center font-medium">{lineHeight.toFixed(1)}</div>
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
                                                     onClick={onIncreaseLineHeight}
+                                                    className={`w-8 h-8 rounded-full ${getButtonThemeStyles()}`}
                                                 >
                                                     +
                                                 </Button>
@@ -593,16 +472,16 @@ export function EbookReaderToolbar({
                                         </div>
 
                                         {/* 글꼴 종류 설정 */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="font-family">글꼴 종류</Label>
+                                        <div className="space-y-3">
+                                            <Label htmlFor="font-family" className="text-sm font-medium">글꼴 종류</Label>
                                             <Select
                                                 value={fontFamily}
                                                 onValueChange={onSetFontFamily}
                                             >
-                                                <SelectTrigger>
+                                                <SelectTrigger className={`rounded-md ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : theme === 'sepia' ? 'bg-amber-100 border-amber-200' : ''}`}>
                                                     <SelectValue placeholder="글꼴 선택" />
                                                 </SelectTrigger>
-                                                <SelectContent>
+                                                <SelectContent className={getDialogThemeStyles()}>
                                                     <SelectItem value="Noto Sans KR, sans-serif">Noto Sans KR</SelectItem>
                                                     <SelectItem value="Noto Serif KR, serif">Noto Serif KR</SelectItem>
                                                     <SelectItem value="Pretendard, sans-serif">Pretendard</SelectItem>
@@ -615,35 +494,227 @@ export function EbookReaderToolbar({
                                         </div>
 
                                         {/* 테마 설정 */}
-                                        <div className="space-y-2">
-                                            <Label>테마</Label>
-                                            <RadioGroup
-                                                value={theme}
-                                                onValueChange={(value) => onSetTheme(value as 'light' | 'dark' | 'sepia')}
-                                                className="flex space-x-2"
-                                            >
-                                                <div className="flex items-center space-x-1">
-                                                    <RadioGroupItem value="light" id="theme-light" />
-                                                    <Label htmlFor="theme-light" className="cursor-pointer">밝은</Label>
-                                                </div>
-                                                <div className="flex items-center space-x-1">
-                                                    <RadioGroupItem value="dark" id="theme-dark" />
-                                                    <Label htmlFor="theme-dark" className="cursor-pointer">어두운</Label>
-                                                </div>
-                                                <div className="flex items-center space-x-1">
-                                                    <RadioGroupItem value="sepia" id="theme-sepia" />
-                                                    <Label htmlFor="theme-sepia" className="cursor-pointer">세피아</Label>
-                                                </div>
-                                            </RadioGroup>
+                                        <div className="space-y-3">
+                                            <Label className="text-sm font-medium">테마</Label>
+                                            <div className="grid grid-cols-3 gap-3">
+                                                <Button
+                                                    variant={theme === 'light' ? 'default' : 'outline'}
+                                                    className="w-full justify-start px-3 py-2 h-auto rounded-md"
+                                                    onClick={() => onSetTheme('light')}
+                                                >
+                                                    <div className="w-4 h-4 rounded-full bg-white border border-gray-300 mr-2"></div>
+                                                    <span>밝은</span>
+                                                </Button>
+                                                <Button
+                                                    variant={theme === 'dark' ? 'default' : 'outline'}
+                                                    className="w-full justify-start px-3 py-2 h-auto rounded-md"
+                                                    onClick={() => onSetTheme('dark')}
+                                                >
+                                                    <div className="w-4 h-4 rounded-full bg-gray-900 border border-gray-700 mr-2"></div>
+                                                    <span>어두운</span>
+                                                </Button>
+                                                <Button
+                                                    variant={theme === 'sepia' ? 'default' : 'outline'}
+                                                    className="w-full justify-start px-3 py-2 h-auto rounded-md"
+                                                    onClick={() => onSetTheme('sepia')}
+                                                >
+                                                    <div className="w-4 h-4 rounded-full bg-amber-50 border border-amber-200 mr-2"></div>
+                                                    <span>세피아</span>
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 </PopoverContent>
                             </Popover>
                         </TooltipTrigger>
-                        <TooltipContent>설정</TooltipContent>
+                        <TooltipContent side="bottom">설정</TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             </div>
+
+            {/* 북마크 추가 다이얼로그 */}
+            <Dialog open={showBookmarkDialog} onOpenChange={setShowBookmarkDialog}>
+                <DialogContent className={`sm:max-w-md ${getDialogThemeStyles()}`}>
+                    <DialogHeader>
+                        <DialogTitle>북마크 추가</DialogTitle>
+                    </DialogHeader>
+                    <Alert>
+                        <AlertTitle>북마크를 추가하시겠습니까?</AlertTitle>
+                        <AlertDescription>
+                            현재 페이지({currentPage})에 북마크를 추가합니다.
+                        </AlertDescription>
+                    </Alert>
+                    <DialogFooter className="flex justify-end space-x-2 mt-4">
+                        <Button variant="outline" onClick={() => setShowBookmarkDialog(false)}>
+                            취소
+                        </Button>
+                        <Button onClick={handleConfirmAddBookmark}>
+                            추가
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* 북마크 삭제 다이얼로그 */}
+            <Dialog open={showRemoveBookmarkDialog} onOpenChange={setShowRemoveBookmarkDialog}>
+                <DialogContent className={`sm:max-w-md ${getDialogThemeStyles()}`}>
+                    <DialogHeader>
+                        <DialogTitle>북마크 삭제</DialogTitle>
+                    </DialogHeader>
+                    <Alert variant="destructive">
+                        <AlertTitle>북마크를 삭제하시겠습니까?</AlertTitle>
+                        <AlertDescription>
+                            현재 페이지({currentPage})의 북마크를 삭제합니다.
+                        </AlertDescription>
+                    </Alert>
+                    <DialogFooter className="flex justify-end space-x-2 mt-4">
+                        <Button variant="outline" onClick={() => setShowRemoveBookmarkDialog(false)}>
+                            취소
+                        </Button>
+                        <Button variant="destructive" onClick={handleConfirmRemoveBookmark}>
+                            삭제
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* 검색 다이얼로그 */}
+            <Dialog open={showSearchDialog} onOpenChange={handleCloseSearchDialog}>
+                <DialogContent className={`sm:max-w-md ${getDialogThemeStyles()}`}>
+                    <DialogHeader>
+                        <DialogTitle>
+                            {hasActiveSearch ? (
+                                <div className="flex items-center">
+                                    <span>검색 결과: "{searchQuery}"</span>
+                                    <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                                        {searchResults.length}개
+                                    </span>
+                                </div>
+                            ) : (
+                                "검색"
+                            )}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="mt-4">
+                        <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2 mb-4">
+                            <Input
+                                type="text"
+                                placeholder="검색어를 입력하세요"
+                                value={localSearchQuery}
+                                onChange={handleSearchInputChange}
+                                className={`flex-1 rounded-md ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : theme === 'sepia' ? 'bg-amber-100 border-amber-200' : ''}`}
+                                autoFocus
+                            />
+                            <Button type="submit" disabled={isSearching} className={`rounded-md ${theme === 'dark' ? 'bg-blue-700 hover:bg-blue-600' : ''}`}>
+                                {isSearching ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                    <Search className="h-4 w-4 mr-2" />
+                                )}
+                                검색
+                            </Button>
+                            {hasActiveSearch && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={handleClearSearch}
+                                    title="검색 결과 지우기"
+                                    className={`rounded-md ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-700' : ''}`}
+                                >
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            )}
+                        </form>
+
+                        {isSearching ? (
+                            <div className="flex items-center justify-center py-8">
+                                <Loader2 className="h-8 w-8 animate-spin" />
+                                <span className="ml-2">검색 중...</span>
+                            </div>
+                        ) : searchResults && searchResults.length > 0 ? (
+                            <div>
+                                <div className="text-sm mb-3 flex justify-between items-center">
+                                    <span>검색 결과: {searchResults.length}개</span>
+                                    <div className="flex items-center space-x-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={onPrevSearchResult}
+                                            disabled={searchResults.length <= 1}
+                                            className={`h-7 px-2 rounded-md ${getButtonThemeStyles()}`}
+                                        >
+                                            <ChevronUp className="h-4 w-4" />
+                                        </Button>
+                                        <span className="text-xs font-medium px-1">
+                                            {currentSearchIndex + 1}/{searchResults.length}
+                                        </span>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={onNextSearchResult}
+                                            disabled={searchResults.length <= 1}
+                                            className={`h-7 px-2 rounded-md ${getButtonThemeStyles()}`}
+                                        >
+                                            <ChevronDown className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                                <ScrollArea className="h-[300px] pr-2">
+                                    <div className="space-y-2">
+                                        {searchResults.map((result, index) => (
+                                            <div
+                                                key={`${result.pageNumber}-${result.startOffset}-${result.blockId || 'none'}`}
+                                                className={`p-3 rounded-md cursor-pointer transition-all duration-200 ${getSearchResultThemeStyles(index === currentSearchIndex)}`}
+                                                onClick={() => handleSearchResultClick(result.pageNumber, index)}
+                                            >
+                                                <div className="flex justify-between mb-1.5">
+                                                    <span className="text-sm font-medium">페이지 {result.pageNumber}</span>
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400">#{index + 1}</span>
+                                                </div>
+                                                {result.blockType && (
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
+                                                        {getBlockTypeLabel(result.blockType)}
+                                                    </div>
+                                                )}
+                                                <p className="text-sm leading-relaxed">
+                                                    ...{result.text}...
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </ScrollArea>
+                            </div>
+                        ) : localSearchQuery ? (
+                            <div className="text-center py-8">
+                                <p>검색 결과가 없습니다.</p>
+                            </div>
+                        ) : (
+                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                <p>검색어를 입력하세요.</p>
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter className="flex justify-between space-x-2 mt-4">
+                        {hasActiveSearch && (
+                            <Button
+                                variant="outline"
+                                onClick={handleClearSearch}
+                                className={`mr-auto rounded-md ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-700' : ''}`}
+                            >
+                                검색 결과 지우기
+                            </Button>
+                        )}
+                        <Button
+                            variant="outline"
+                            onClick={handleCloseSearchDialog}
+                            className={`rounded-md ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-700' : ''}`}
+                        >
+                            닫기
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 } 

@@ -111,11 +111,35 @@ export function PageNavigation({
     const getThemeStyles = () => {
         switch (theme) {
             case 'dark':
-                return 'bg-gray-900 text-white border-gray-700';
+                return 'bg-gray-900 text-white border-gray-700 shadow-md shadow-gray-800/20';
             case 'sepia':
-                return 'bg-amber-50 text-gray-900 border-amber-200';
+                return 'bg-amber-50 text-gray-900 border-amber-200 shadow-md shadow-amber-200/20';
             default:
-                return 'bg-white text-gray-900 border-gray-200';
+                return 'bg-white text-gray-900 border-gray-200 shadow-md shadow-gray-200/20';
+        }
+    };
+
+    // 테마에 따른 버튼 스타일 설정
+    const getButtonThemeStyles = () => {
+        switch (theme) {
+            case 'dark':
+                return 'hover:bg-gray-800 text-gray-300 hover:text-white';
+            case 'sepia':
+                return 'hover:bg-amber-100 text-amber-800 hover:text-amber-900';
+            default:
+                return 'hover:bg-gray-100 text-gray-700 hover:text-gray-900';
+        }
+    };
+
+    // 테마에 따른 입력 필드 스타일 설정
+    const getInputThemeStyles = () => {
+        switch (theme) {
+            case 'dark':
+                return 'bg-gray-800 border-gray-700 text-white';
+            case 'sepia':
+                return 'bg-amber-100 border-amber-200 text-gray-900';
+            default:
+                return 'bg-white border-gray-200 text-gray-900';
         }
     };
 
@@ -123,52 +147,64 @@ export function PageNavigation({
     console.log("PageNavigation 렌더링:", { currentPage, totalPages, sliderValue });
 
     return (
-        <div className={`flex items-center justify-between p-4 w-full ${getThemeStyles()} ${className}`}>
+        <div className={`flex items-center justify-between py-3 px-4 w-full ${getThemeStyles()} ${className} transition-colors duration-300`}>
             <div className="flex items-center space-x-2">
                 <Button
                     variant="ghost"
-                    size="icon"
+                    size="sm"
                     onClick={goToFirstPage}
                     disabled={currentPage <= 1}
                     title="처음 페이지"
-                    className="h-9 w-9"
+                    className={`rounded-full w-8 h-8 p-0 flex items-center justify-center ${getButtonThemeStyles()}`}
                 >
-                    <ChevronsLeft className="h-5 w-5" />
+                    <ChevronsLeft className="h-4 w-4" />
                 </Button>
                 <Button
                     variant="ghost"
+                    size="sm"
                     onClick={onPrevPage}
                     disabled={currentPage <= 1}
-                    className="h-9"
+                    className={`rounded-full flex items-center justify-center ${getButtonThemeStyles()}`}
                 >
-                    <ChevronLeft className="h-5 w-5 mr-1" />
-                    이전
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    <span className="hidden sm:inline text-sm">이전</span>
                 </Button>
             </div>
 
             <Popover>
                 <PopoverTrigger asChild>
-                    <Button variant="outline" className="min-w-[100px] h-9">
-                        {currentPage} / {totalPages}
+                    <Button
+                        variant="outline"
+                        className={`min-w-[120px] h-9 rounded-full text-sm font-medium ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : theme === 'sepia' ? 'border-amber-200 bg-amber-100' : ''}`}
+                    >
+                        <span className="font-medium">{currentPage}</span>
+                        <span className="mx-1 text-gray-500 dark:text-gray-400">/</span>
+                        <span>{totalPages}</span>
                     </Button>
                 </PopoverTrigger>
-                <PopoverContent className={`w-80 ${getThemeStyles()}`}>
-                    <div className="space-y-4">
-                        <h4 className="font-medium">페이지 이동</h4>
-                        <form onSubmit={handlePageInputSubmit} className="flex items-center space-x-2">
+                <PopoverContent className={`w-80 p-4 ${getThemeStyles()}`}>
+                    <div className="space-y-5">
+                        <h4 className="font-medium text-base">페이지 이동</h4>
+                        <form onSubmit={handlePageInputSubmit} className="flex items-center space-x-3">
                             <Input
                                 type="number"
                                 min={1}
                                 max={totalPages}
                                 value={pageInputValue}
                                 onChange={handlePageInputChange}
-                                className="w-20"
+                                className={`w-20 rounded-md ${getInputThemeStyles()}`}
                             />
-                            <span>/ {totalPages}</span>
-                            <Button type="submit" size="sm">이동</Button>
+                            <span className="text-gray-500 dark:text-gray-400">/ {totalPages}</span>
+                            <Button
+                                type="submit"
+                                size="sm"
+                                className={`rounded-md ${theme === 'dark' ? 'bg-blue-700 hover:bg-blue-600' : ''}`}
+                            >
+                                이동
+                            </Button>
                         </form>
-                        <div className="space-y-2">
-                            <div className="flex justify-between">
+                        <div className="space-y-3">
+                            <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 px-1">
                                 <span>1</span>
                                 <span>{totalPages}</span>
                             </div>
@@ -179,6 +215,8 @@ export function PageNavigation({
                                 step={1}
                                 onValueChange={handleSliderChange}
                                 onValueCommit={handleSliderChangeComplete}
+                                className={theme === 'dark' ? '[&_[role=slider]]:bg-blue-600 [&_[role=slider]]:border-blue-700 [&_[role=slider]]:hover:bg-blue-500' :
+                                    theme === 'sepia' ? '[&_[role=slider]]:bg-amber-600 [&_[role=slider]]:border-amber-700 [&_[role=slider]]:hover:bg-amber-500' : ''}
                             />
                         </div>
                     </div>
@@ -188,22 +226,23 @@ export function PageNavigation({
             <div className="flex items-center space-x-2">
                 <Button
                     variant="ghost"
+                    size="sm"
                     onClick={onNextPage}
                     disabled={currentPage >= totalPages}
-                    className="h-9"
+                    className={`rounded-full flex items-center justify-center ${getButtonThemeStyles()}`}
                 >
-                    다음
-                    <ChevronRight className="h-5 w-5 ml-1" />
+                    <span className="hidden sm:inline text-sm">다음</span>
+                    <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
                 <Button
                     variant="ghost"
-                    size="icon"
+                    size="sm"
                     onClick={goToLastPage}
                     disabled={currentPage >= totalPages}
                     title="마지막 페이지"
-                    className="h-9 w-9"
+                    className={`rounded-full w-8 h-8 p-0 flex items-center justify-center ${getButtonThemeStyles()}`}
                 >
-                    <ChevronsRight className="h-5 w-5" />
+                    <ChevronsRight className="h-4 w-4" />
                 </Button>
             </div>
         </div>
