@@ -1,9 +1,6 @@
 import { X } from "lucide-react";
 import { Button } from "~/common/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/common/components/ui/tabs";
-import { TableOfContents } from "./table-of-contents";
-import { BookmarkList } from "./bookmark-list";
-import { HighlightList } from "./highlight-list";
 
 interface TocItem {
     id: string;

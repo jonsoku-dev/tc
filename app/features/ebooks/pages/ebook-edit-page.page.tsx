@@ -1,22 +1,19 @@
+import { format } from "date-fns";
+import { redirect } from "react-router";
+import { getServerClient } from "~/server";
 import { createClient } from "~/supa-client";
 import { EbookForm } from "../components/ebook-form";
 import { EBOOK_STATUS } from "../constants";
 import type { Route } from "./+types/ebook-edit-page.page";
-import { format } from "date-fns";
-import { redirect } from "react-router";
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, request }: Route.LoaderArgs) {
     const ebookId = params.ebookId;
 
     if (!ebookId) {
         throw new Response("전자책 ID가 필요합니다.", { status: 400 });
     }
 
-    // Supabase 클라이언트 생성
-    const supabase = createClient({
-        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
-        supabaseKey: import.meta.env.VITE_SUPABASE_KEY,
-    });
+    const { supabase, headers } = getServerClient(request);
 
     try {
         // 전자책 정보 가져오기

@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { redirect } from "react-router";
 import { parseFormData, validateFormData } from "~/common/utils/form-utils";
 import { getServerClient } from "~/server";
@@ -5,20 +6,6 @@ import { EbookForm } from "../components/ebook-form";
 import type { EbookFormValues } from "../schemas/ebook-form.schema";
 import { ebookFormSchema, FormStep } from "../schemas/ebook-form.schema";
 import type { Route } from "./+types/ebook-new-page.page";
-import { zodResolver } from "@hookform/resolvers/zod";
-
-// 액션 데이터 타입 정의
-interface ActionData {
-    fieldErrors?: {
-        form?: string;
-        [key: string]: string | undefined;
-    };
-    step?: FormStep | null;
-    success?: boolean;
-    ebookId?: string;
-    errors?: any;
-    defaultValues?: Partial<EbookFormValues>;
-}
 
 export async function action({ request }: Route.ActionArgs): Promise<Response> {
     try {

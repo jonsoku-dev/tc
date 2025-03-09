@@ -1,21 +1,16 @@
-import { useEffect, useState, useRef } from "react";
-import { Form, useNavigate } from "react-router";
+import React from "react";
+import { useNavigate } from "react-router";
+import { useSupabase } from "~/common/hooks/use-supabase";
+import { getServerClient } from "~/server";
 import { createClient } from "~/supa-client";
 import { EbookPageViewer } from "../components/ebook-page-viewer";
+import type { BookmarkItem, Highlight } from "../components/types";
 import { EbookReaderProvider, useEbookReader, useEbookReaderHandlers } from "../machines/ebook-reader.context";
 import { EbookUIProvider, useEbookUI } from "../machines/ebook-ui.context";
 import type { Route } from "./+types/ebook-reader-page.page";
-import type { Highlight, BookmarkItem } from "../components/types";
-import { useSupabase } from "~/common/hooks/use-supabase";
-import React from "react";
-
 // 로더 함수
-export async function loader({ params }: Route.LoaderArgs) {
-    // Supabase 클라이언트 생성
-    const supabase = createClient({
-        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
-        supabaseKey: import.meta.env.VITE_SUPABASE_KEY,
-    });
+export async function loader({ params, request }: Route.LoaderArgs) {
+    const { supabase, headers } = getServerClient(request);
 
     const ebookId = params.ebookId;
 

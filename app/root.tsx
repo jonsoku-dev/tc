@@ -17,6 +17,21 @@ import { cn } from "~/lib/utils";
 import { getServerClient } from "~/server";
 import type { Route } from "./+types/root";
 import "./app.css";
+import {
+  QueryClient,
+  QueryClientProvider,
+  QueryCache,
+  MutationCache
+} from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useState, lazy, Suspense } from "react";
+
+// 개발 모드에서만 ReactQueryDevtools를 임포트
+const ReactQueryDevtools = import.meta.env.DEV
+  ? lazy(() => import("@tanstack/react-query-devtools").then(mod => ({
+    default: mod.ReactQueryDevtools
+  })))
+  : () => null;
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -99,6 +114,45 @@ export default function Root() {
   const navigation = useNavigation();
   const isLoading = navigation.state === "loading";
 
+  // React Query 클라이언트 설정
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 1000 * 60 * 5, // 5분
+        retry: 1,
+        refetchOnWindowFocus: false,
+      },
+    },
+    queryCache: new QueryCache({
+      onError: (error, query) => {
+        // 개발 모드에서만 콘솔에 에러 로깅
+        if (import.meta.env.DEV) {
+          console.error('Query 에러:', error, query);
+        }
+
+        // 사용자에게 에러 알림
+        toast.error(
+          `요청 처리 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`
+        );
+      },
+    }),
+    mutationCache: new MutationCache({
+      onError: (error, _variables, _context, mutation) => {
+        // 개발 모드에서만 콘솔에 에러 로깅
+        if (import.meta.env.DEV) {
+          console.error('Mutation 에러:', error, mutation);
+        }
+
+        // 사용자에게 에러 알림 (이미 처리된 경우 제외)
+        if (!mutation.options.onError) {
+          toast.error(
+            `요청 처리 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`
+          );
+        }
+      },
+    }),
+  }));
+
   // 기본 설정
   Settings.defaultLocale = "ko";
   Settings.defaultZone = "Asia/Tokyo";
@@ -112,20 +166,28 @@ export default function Root() {
         <Links />
       </head>
       <body suppressHydrationWarning={true}>
-        <main className="min-h-full">
-          <AppLayout
-            isAuthenticated={isAuthenticated}
-            unreadAlertCount={unreadAlertCount}
-            profile={profile}
-            isLoading={isLoading}
-            pathname={pathname}
-          >
-            <Outlet />
-          </AppLayout>
-          <Toaster />
-        </main>
-        <ScrollRestoration />
-        <Scripts />
+        <QueryClientProvider client={queryClient}>
+          <main className="min-h-full">
+            <AppLayout
+              isAuthenticated={isAuthenticated}
+              unreadAlertCount={unreadAlertCount}
+              profile={profile}
+              isLoading={isLoading}
+              pathname={pathname}
+            >
+              <Outlet />
+            </AppLayout>
+            <Toaster />
+          </main>
+          {/* 개발 모드에서만 React Query Devtools 표시 */}
+          {import.meta.env.DEV && (
+            <Suspense fallback={null}>
+              <ReactQueryDevtools initialIsOpen={false} />
+            </Suspense>
+          )}
+          <ScrollRestoration />
+          <Scripts />
+        </QueryClientProvider>
       </body>
     </html>
   );
