@@ -1,4 +1,4 @@
-import { ArrowLeft, BookmarkPlus, List, Settings, Share, Bookmark, Search, ChevronUp, ChevronDown, X, Loader2 } from "lucide-react";
+import { ArrowLeft, BookmarkPlus, List, Settings, Share, Bookmark, Search, ChevronUp, ChevronDown, X, Loader2, Menu } from "lucide-react";
 import { Button } from "~/common/components/ui/button";
 import { Label } from "~/common/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "~/common/components/ui/popover";
@@ -13,6 +13,7 @@ import { Input } from "~/common/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "~/common/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/common/components/ui/select";
 import { ScrollArea } from "~/common/components/ui/scroll-area";
+import { useMediaQuery } from "../hooks/use-media-query";
 
 interface EbookReaderToolbarProps {
     title: string;
@@ -96,8 +97,8 @@ export function EbookReaderToolbar({
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
     const [isSearching, setIsSearching] = useState(false);
 
-    // 검색 결과가 활성화되어 있는지 확인 (props에서 받은 값 사용)
-    // const hasActiveSearch = searchResults && searchResults.length > 0;
+    // 모바일 환경 감지
+    const isMobile = useMediaQuery("(max-width: 768px)");
 
     // 쿼리 클라이언트 및 북마크 관련 훅
     const queryClient = useQueryClient();
@@ -313,18 +314,19 @@ export function EbookReaderToolbar({
     };
 
     return (
-        <div className={`flex items-center justify-between py-2.5 px-4 border-b w-full sticky top-0 z-10 ${getThemeStyles()} ${className}`}>
-            <div className="flex items-center space-x-2">
+        <div className={`flex items-center justify-between p-2 border-b ${getThemeStyles()}`}>
+            <div className="flex items-center space-x-1">
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button
                                 variant="ghost"
-                                size="sm"
+                                size="icon"
                                 onClick={onGoBack}
-                                className={`rounded-full w-8 h-8 p-0 flex items-center justify-center ${getButtonThemeStyles()}`}
+                                className={`h-8 w-8 ${getButtonThemeStyles()}`}
+                                title="뒤로가기"
                             >
-                                <ArrowLeft className="h-4 w-4" />
+                                <ArrowLeft className={`${isMobile ? 'h-5 w-5' : 'h-4 w-4'}`} />
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom">뒤로가기</TooltipContent>
@@ -332,11 +334,12 @@ export function EbookReaderToolbar({
                 </TooltipProvider>
                 <Button
                     variant="ghost"
-                    size="sm"
+                    size="icon"
                     onClick={onToggleSidebar}
-                    className={`rounded-full w-8 h-8 p-0 flex items-center justify-center ${getButtonThemeStyles()}`}
+                    className={`h-8 w-8 ${getButtonThemeStyles()}`}
+                    title="목차 및 북마크"
                 >
-                    <List className="h-4 w-4" />
+                    <Menu className={`${isMobile ? 'h-5 w-5' : 'h-4 w-4'}`} />
                 </Button>
                 <div className="hidden md:block ml-2 font-medium truncate max-w-[300px]" title={title}>
                     {title}

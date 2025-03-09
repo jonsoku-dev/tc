@@ -270,6 +270,8 @@ interface EbookReaderSidebarProps {
     onHighlightChange?: () => void;
     className?: string;
     theme?: 'light' | 'dark' | 'sepia';
+    isMobile?: boolean;
+    onClose?: () => void;
 }
 
 export function EbookReaderSidebar({
@@ -285,6 +287,8 @@ export function EbookReaderSidebar({
     onHighlightChange,
     className = "",
     theme = "light",
+    isMobile = false,
+    onClose,
 }: EbookReaderSidebarProps) {
     const [activeTab, setActiveTab] = useState("toc");
 
@@ -331,28 +335,38 @@ export function EbookReaderSidebar({
     };
 
     return (
-        <div className={`w-full h-full border-r overflow-hidden flex flex-col ${getThemeStyles()} ${className} transition-colors duration-300`}>
-            <div className="flex items-center justify-between py-3 px-4 border-b">
-                <h2 className="text-lg font-semibold truncate">{title}</h2>
+        <div className={`flex flex-col h-full ${getThemeStyles()} ${className}`}>
+            <div className={`flex items-center justify-between p-3 border-b ${theme === 'dark' ? 'border-gray-700' : theme === 'sepia' ? 'border-amber-200' : 'border-gray-200'}`}>
+                <h2 className={`${isMobile ? 'text-lg' : 'text-base'} font-semibold truncate`}>{title}</h2>
+                {isMobile && onClose && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onClose}
+                        className={`h-9 w-9 ${theme === 'dark' ? 'hover:bg-gray-700' : theme === 'sepia' ? 'hover:bg-amber-200' : 'hover:bg-gray-200'}`}
+                    >
+                        <X className="h-5 w-5" />
+                    </Button>
+                )}
             </div>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-                <TabsList className={`grid grid-cols-3 mx-4 mt-3 mb-2 rounded-lg ${theme === 'dark' ? 'bg-gray-800' : theme === 'sepia' ? 'bg-amber-100' : ''}`}>
+            <Tabs defaultValue="toc" className="flex-1 flex flex-col">
+                <TabsList className={`grid grid-cols-3 w-full rounded-none ${getTabThemeStyles()}`}>
                     <TabsTrigger
                         value="toc"
-                        className={`${getTabThemeStyles()}`}
+                        onClick={() => setActiveTab("toc")}
                     >
                         목차
                     </TabsTrigger>
                     <TabsTrigger
                         value="bookmarks"
-                        className={`${getTabThemeStyles()}`}
+                        onClick={() => setActiveTab("bookmarks")}
                     >
                         북마크
                     </TabsTrigger>
                     <TabsTrigger
                         value="highlights"
-                        className={`${getTabThemeStyles()}`}
+                        onClick={() => setActiveTab("highlights")}
                     >
                         하이라이트
                     </TabsTrigger>

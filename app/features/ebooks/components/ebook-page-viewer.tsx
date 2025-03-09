@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EbookReaderSidebar } from "./ebook-reader-sidebar";
 import { EbookReaderToolbar } from "./ebook-reader-toolbar";
 import { PageNavigation } from "./page-navigation";
@@ -7,6 +7,7 @@ import type { BookmarkItem, Ebook, Highlight } from "./types";
 import { useBookmarks } from "../hooks/use-bookmark-api";
 import { useQueryClient } from "@tanstack/react-query";
 import { EBOOK_QUERY_KEYS } from "../constants/query-keys";
+import { useMediaQuery } from "../hooks/use-media-query";
 
 interface EbookPageViewerProps {
     ebook: Ebook;
@@ -130,6 +131,28 @@ export function EbookPageViewer({
 }: EbookPageViewerProps) {
     // 쿼리 클라이언트
     const queryClient = useQueryClient();
+
+    // 모바일 환경 감지
+    const isMobile = useMediaQuery("(max-width: 768px)");
+
+    // 사이드바 참조
+    const sidebarRef = useRef<HTMLDivElement>(null);
+
+    // 사이드바 외부 클릭 감지
+    useEffect(() => {
+        if (!isMobile) return;
+
+        const handleClickOutside = (event: MouseEvent) => {
+            if (sidebarOpen && sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
+                onToggleSidebar();
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [isMobile, sidebarOpen, onToggleSidebar]);
 
     // 북마크 데이터 가져오기 (실시간 동기화를 위해 직접 훅 사용)
     const { bookmarks: realtimeBookmarks } = useBookmarks(ebook.ebook_id);
@@ -322,11 +345,39 @@ export function EbookPageViewer({
         }
     };
 
+    // 모바일 환경에서 사이드바가 열릴 때 배경 스크롤 방지
+    useEffect(() => {
+        if (isMobile && sidebarOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [isMobile, sidebarOpen]);
+
     return (
         <div className={`flex h-screen overflow-hidden ${getThemeStyles()} ${className}`}>
             {/* 사이드바 */}
-            {sidebarOpen && (
-                <div className="w-72 h-full border-r flex-shrink-0 transition-all duration-300 ease-in-out">
+            <div
+                ref={sidebarRef}
+                className={`
+                    ${isMobile
+                        ? 'fixed top-0 left-0 z-50 h-full transition-transform duration-300 ease-in-out shadow-xl'
+                        : 'w-72 h-full border-r flex-shrink-0 transition-all duration-300 ease-in-out'
+                    }
+                    ${isMobile && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'}
+                    ${isMobile ? 'w-[85vw] max-w-[320px]' : 'w-72'}
+                    ${getThemeStyles()}
+                `}
+                style={{
+                    backdropFilter: isMobile ? 'blur(8px)' : 'none',
+                    WebkitBackdropFilter: isMobile ? 'blur(8px)' : 'none',
+                }}
+            >
+                {sidebarOpen && (
                     <EbookReaderSidebar
                         title={ebook.title}
                         ebookId={ebook.ebook_id}
@@ -338,12 +389,29 @@ export function EbookPageViewer({
                         onHighlightClick={handleHighlightClick}
                         onUpdateHighlightNote={onUpdateHighlightNote}
                         theme={theme}
+                        isMobile={isMobile}
+                        onClose={isMobile ? onToggleSidebar : undefined}
                     />
-                </div>
+                )}
+            </div>
+
+            {/* 모바일 사이드바 오버레이 */}
+            {isMobile && sidebarOpen && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm transition-opacity duration-300"
+                    onClick={onToggleSidebar}
+                    aria-hidden="true"
+                />
             )}
 
             {/* 메인 콘텐츠 */}
-            <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+            <div
+                className={`
+                    flex-1 flex flex-col h-full overflow-hidden relative 
+                    ${isMobile && sidebarOpen ? 'opacity-50' : 'opacity-100'}
+                    transition-opacity duration-300
+                `}
+            >
                 {/* 상단 툴바 */}
                 <div className={`flex-shrink-0 sticky top-0 left-0 right-0 z-10 ${getThemeStyles()}`}>
                     <EbookReaderToolbar
