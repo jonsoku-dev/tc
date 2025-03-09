@@ -419,54 +419,76 @@ export function EbookReaderToolbar({
                                         <Settings className="h-4 w-4" />
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className={`w-80 p-4 ${getDialogThemeStyles()}`}>
-                                    <div className="space-y-5">
-                                        <h3 className="font-medium text-base mb-3">설정</h3>
+                                <PopoverContent className={`w-80 p-5 ${getDialogThemeStyles()} rounded-xl shadow-lg`}>
+                                    <div className="space-y-6">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="font-semibold text-base">설정</h3>
+                                        </div>
 
                                         {/* 글꼴 크기 설정 */}
                                         <div className="space-y-3">
-                                            <Label htmlFor="font-size" className="text-sm font-medium">글꼴 크기</Label>
+                                            <div className="flex items-center justify-between">
+                                                <Label htmlFor="font-size" className="text-sm font-medium">글꼴 크기</Label>
+                                                <span className="text-sm font-semibold">{fontSize}px</span>
+                                            </div>
                                             <div className="flex items-center space-x-3">
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
                                                     onClick={onDecreaseFontSize}
-                                                    className={`w-8 h-8 rounded-full ${getButtonThemeStyles()}`}
+                                                    className={`w-8 h-8 rounded-full flex items-center justify-center ${getButtonThemeStyles()}`}
                                                 >
-                                                    -
+                                                    <span className="text-lg font-medium">-</span>
                                                 </Button>
-                                                <div className="flex-1 text-center font-medium">{fontSize}px</div>
+                                                <div className="flex-1">
+                                                    <div className={`h-1 rounded-full w-full ${theme === 'dark' ? 'bg-gray-700' : theme === 'sepia' ? 'bg-amber-200' : 'bg-gray-200'}`}>
+                                                        <div
+                                                            className={`h-1 rounded-full ${theme === 'dark' ? 'bg-blue-600' : theme === 'sepia' ? 'bg-amber-500' : 'bg-blue-500'}`}
+                                                            style={{ width: `${(fontSize - 12) / 12 * 100}%` }}
+                                                        ></div>
+                                                    </div>
+                                                </div>
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
                                                     onClick={onIncreaseFontSize}
-                                                    className={`w-8 h-8 rounded-full ${getButtonThemeStyles()}`}
+                                                    className={`w-8 h-8 rounded-full flex items-center justify-center ${getButtonThemeStyles()}`}
                                                 >
-                                                    +
+                                                    <span className="text-lg font-medium">+</span>
                                                 </Button>
                                             </div>
                                         </div>
 
                                         {/* 줄 간격 설정 */}
                                         <div className="space-y-3">
-                                            <Label htmlFor="line-height" className="text-sm font-medium">줄 간격</Label>
+                                            <div className="flex items-center justify-between">
+                                                <Label htmlFor="line-height" className="text-sm font-medium">줄 간격</Label>
+                                                <span className="text-sm font-semibold">{lineHeight.toFixed(1)}</span>
+                                            </div>
                                             <div className="flex items-center space-x-3">
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
                                                     onClick={onDecreaseLineHeight}
-                                                    className={`w-8 h-8 rounded-full ${getButtonThemeStyles()}`}
+                                                    className={`w-8 h-8 rounded-full flex items-center justify-center ${getButtonThemeStyles()}`}
                                                 >
-                                                    -
+                                                    <span className="text-lg font-medium">-</span>
                                                 </Button>
-                                                <div className="flex-1 text-center font-medium">{lineHeight.toFixed(1)}</div>
+                                                <div className="flex-1">
+                                                    <div className={`h-1 rounded-full w-full ${theme === 'dark' ? 'bg-gray-700' : theme === 'sepia' ? 'bg-amber-200' : 'bg-gray-200'}`}>
+                                                        <div
+                                                            className={`h-1 rounded-full ${theme === 'dark' ? 'bg-blue-600' : theme === 'sepia' ? 'bg-amber-500' : 'bg-blue-500'}`}
+                                                            style={{ width: `${(lineHeight - 1.0) / 1.5 * 100}%` }}
+                                                        ></div>
+                                                    </div>
+                                                </div>
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
                                                     onClick={onIncreaseLineHeight}
-                                                    className={`w-8 h-8 rounded-full ${getButtonThemeStyles()}`}
+                                                    className={`w-8 h-8 rounded-full flex items-center justify-center ${getButtonThemeStyles()}`}
                                                 >
-                                                    +
+                                                    <span className="text-lg font-medium">+</span>
                                                 </Button>
                                             </div>
                                         </div>
@@ -478,10 +500,10 @@ export function EbookReaderToolbar({
                                                 value={fontFamily}
                                                 onValueChange={onSetFontFamily}
                                             >
-                                                <SelectTrigger className={`rounded-md ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : theme === 'sepia' ? 'bg-amber-100 border-amber-200' : ''}`}>
+                                                <SelectTrigger className={`rounded-lg border ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : theme === 'sepia' ? 'bg-amber-100 border-amber-200' : 'bg-white border-gray-200'}`}>
                                                     <SelectValue placeholder="글꼴 선택" />
                                                 </SelectTrigger>
-                                                <SelectContent className={getDialogThemeStyles()}>
+                                                <SelectContent className={`${getDialogThemeStyles()} rounded-lg`}>
                                                     <SelectItem value="Noto Sans KR, sans-serif">Noto Sans KR</SelectItem>
                                                     <SelectItem value="Noto Serif KR, serif">Noto Serif KR</SelectItem>
                                                     <SelectItem value="Pretendard, sans-serif">Pretendard</SelectItem>
@@ -497,30 +519,36 @@ export function EbookReaderToolbar({
                                         <div className="space-y-3">
                                             <Label className="text-sm font-medium">테마</Label>
                                             <div className="grid grid-cols-3 gap-3">
-                                                <Button
-                                                    variant={theme === 'light' ? 'default' : 'outline'}
-                                                    className="w-full justify-start px-3 py-2 h-auto rounded-md"
+                                                <div
+                                                    className={`flex flex-col items-center justify-center p-3 rounded-xl cursor-pointer transition-all duration-200 ${theme === 'light'
+                                                        ? 'bg-blue-50 border-2 border-blue-500 shadow-sm'
+                                                        : 'border border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'
+                                                        }`}
                                                     onClick={() => onSetTheme('light')}
                                                 >
-                                                    <div className="w-4 h-4 rounded-full bg-white border border-gray-300 mr-2"></div>
-                                                    <span>밝은</span>
-                                                </Button>
-                                                <Button
-                                                    variant={theme === 'dark' ? 'default' : 'outline'}
-                                                    className="w-full justify-start px-3 py-2 h-auto rounded-md"
+                                                    <div className="w-8 h-8 rounded-full bg-white border border-gray-300 mb-2 shadow-sm"></div>
+                                                    <span className="text-sm font-medium">밝은</span>
+                                                </div>
+                                                <div
+                                                    className={`flex flex-col items-center justify-center p-3 rounded-xl cursor-pointer transition-all duration-200 ${theme === 'dark'
+                                                        ? 'bg-gray-800 border-2 border-blue-500 shadow-sm'
+                                                        : 'border border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'
+                                                        }`}
                                                     onClick={() => onSetTheme('dark')}
                                                 >
-                                                    <div className="w-4 h-4 rounded-full bg-gray-900 border border-gray-700 mr-2"></div>
-                                                    <span>어두운</span>
-                                                </Button>
-                                                <Button
-                                                    variant={theme === 'sepia' ? 'default' : 'outline'}
-                                                    className="w-full justify-start px-3 py-2 h-auto rounded-md"
+                                                    <div className="w-8 h-8 rounded-full bg-gray-900 border border-gray-700 mb-2 shadow-sm"></div>
+                                                    <span className="text-sm font-medium">어두운</span>
+                                                </div>
+                                                <div
+                                                    className={`flex flex-col items-center justify-center p-3 rounded-xl cursor-pointer transition-all duration-200 ${theme === 'sepia'
+                                                        ? 'bg-amber-50 border-2 border-amber-500 shadow-sm'
+                                                        : 'border border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'
+                                                        }`}
                                                     onClick={() => onSetTheme('sepia')}
                                                 >
-                                                    <div className="w-4 h-4 rounded-full bg-amber-50 border border-amber-200 mr-2"></div>
-                                                    <span>세피아</span>
-                                                </Button>
+                                                    <div className="w-8 h-8 rounded-full bg-amber-50 border border-amber-200 mb-2 shadow-sm"></div>
+                                                    <span className="text-sm font-medium">세피아</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
