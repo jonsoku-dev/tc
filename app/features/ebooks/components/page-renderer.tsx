@@ -5,7 +5,7 @@ import { MarkdownRenderer } from "./markdown-renderer";
 interface PageRendererProps {
     page: EbookPage;
     highlights?: Highlight[];
-    onTextSelect?: (selection: { text: string; startOffset: number; endOffset: number; pageNumber: number }) => void;
+    onTextSelect?: (selection: { text: string; startOffset: number; endOffset: number; pageNumber: number; blockId: string | null; blockType: string | null }) => void;
     className?: string;
 }
 
@@ -24,6 +24,30 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
             const text = selection.toString().trim();
             if (!text) return;
 
+            // 선택된 텍스트가 속한 블록 요소 찾기
+            const startContainer = range.startContainer;
+            let blockElement = startContainer.parentElement;
+
+            // 블록 요소 찾기 (최대 5단계까지 상위로 탐색)
+            let blockId = null;
+            let blockType = null;
+            let currentElement = blockElement;
+            let depth = 0;
+
+            while (currentElement && depth < 5) {
+                const dataBlockId = currentElement.getAttribute('data-block-id');
+                const dataBlockType = currentElement.getAttribute('data-block-type');
+
+                if (dataBlockId && dataBlockType) {
+                    blockId = dataBlockId;
+                    blockType = dataBlockType;
+                    break;
+                }
+
+                currentElement = currentElement.parentElement;
+                depth++;
+            }
+
             const startOffset = range.startOffset;
             const endOffset = range.endOffset;
 
@@ -31,7 +55,9 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                 text,
                 startOffset,
                 endOffset,
-                pageNumber: page.page_number
+                pageNumber: page.page_number,
+                blockId,
+                blockType
             });
         };
 
@@ -41,11 +67,19 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
 
     // 블록 렌더링
     const renderBlock = (block: Block) => {
+        // 현재 블록에 해당하는 하이라이트만 필터링
+        const blockHighlights = highlights.filter(h =>
+            h.pageNumber === page.page_number &&
+            (!h.blockId || h.blockId === block.id)
+        );
+
         switch (block.type) {
             case "paragraph":
                 return (
                     <p
                         className="my-4"
+                        data-block-id={block.id}
+                        data-block-type={block.type}
                         style={{
                             fontSize: block.style?.fontSize,
                             lineHeight: block.style?.lineHeight,
@@ -59,17 +93,17 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                 );
             case "heading":
                 switch (block.level) {
-                    case 1: return <h1 className="text-3xl font-bold my-4">{block.content}</h1>;
-                    case 2: return <h2 className="text-2xl font-bold my-4">{block.content}</h2>;
-                    case 3: return <h3 className="text-xl font-bold my-4">{block.content}</h3>;
-                    case 4: return <h4 className="text-lg font-bold my-4">{block.content}</h4>;
-                    case 5: return <h5 className="text-base font-bold my-4">{block.content}</h5>;
-                    case 6: return <h6 className="text-sm font-bold my-4">{block.content}</h6>;
-                    default: return <h2 className="text-2xl font-bold my-4">{block.content}</h2>;
+                    case 1: return <h1 className="text-3xl font-bold my-4" data-block-id={block.id} data-block-type={block.type}>{block.content}</h1>;
+                    case 2: return <h2 className="text-2xl font-bold my-4" data-block-id={block.id} data-block-type={block.type}>{block.content}</h2>;
+                    case 3: return <h3 className="text-xl font-bold my-4" data-block-id={block.id} data-block-type={block.type}>{block.content}</h3>;
+                    case 4: return <h4 className="text-lg font-bold my-4" data-block-id={block.id} data-block-type={block.type}>{block.content}</h4>;
+                    case 5: return <h5 className="text-base font-bold my-4" data-block-id={block.id} data-block-type={block.type}>{block.content}</h5>;
+                    case 6: return <h6 className="text-sm font-bold my-4" data-block-id={block.id} data-block-type={block.type}>{block.content}</h6>;
+                    default: return <h2 className="text-2xl font-bold my-4" data-block-id={block.id} data-block-type={block.type}>{block.content}</h2>;
                 }
             case "image":
                 return (
-                    <figure className="my-4">
+                    <figure className="my-4" data-block-id={block.id} data-block-type={block.type}>
                         <img
                             src={block.url}
                             alt={block.alt || ""}
@@ -88,7 +122,7 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                 );
             case "code":
                 return (
-                    <div className="my-4">
+                    <div className="my-4" data-block-id={block.id} data-block-type={block.type}>
                         <pre className="bg-gray-100 p-4 rounded-md overflow-auto">
                             <code className={`language-${block.language || 'text'}`}>
                                 {block.code}
@@ -103,7 +137,7 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                 );
             case "table":
                 return (
-                    <div className="my-4 overflow-x-auto">
+                    <div className="my-4 overflow-x-auto" data-block-id={block.id} data-block-type={block.type}>
                         {block.caption && (
                             <div className="text-center text-sm text-gray-500 mb-2">
                                 {block.caption}
@@ -135,7 +169,7 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                 );
             case "video":
                 return (
-                    <figure className="my-4">
+                    <figure className="my-4" data-block-id={block.id} data-block-type={block.type}>
                         <video
                             src={block.url}
                             controls={block.controls !== false}
@@ -151,7 +185,7 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                 );
             case "audio":
                 return (
-                    <figure className="my-4">
+                    <figure className="my-4" data-block-id={block.id} data-block-type={block.type}>
                         <audio
                             src={block.url}
                             controls={block.controls !== false}
@@ -167,14 +201,23 @@ export function PageRenderer({ page, highlights = [], onTextSelect, className = 
                 );
             case "markdown":
                 return (
-                    <MarkdownRenderer
-                        content={block.content}
-                        highlights={highlights.filter(h => h.pageNumber === page.page_number)}
-                        onTextSelect={onTextSelect ?
-                            ({ text, startOffset, endOffset }) =>
-                                onTextSelect({ text, startOffset, endOffset, pageNumber: page.page_number })
-                            : undefined as any}
-                    />
+                    <div data-block-id={block.id} data-block-type={block.type}>
+                        <MarkdownRenderer
+                            content={block.content}
+                            highlights={blockHighlights}
+                            onTextSelect={onTextSelect ?
+                                ({ text, startOffset, endOffset }) =>
+                                    onTextSelect({
+                                        text,
+                                        startOffset,
+                                        endOffset,
+                                        pageNumber: page.page_number,
+                                        blockId: block.id,
+                                        blockType: block.type
+                                    })
+                                : undefined as any}
+                        />
+                    </div>
                 );
             default:
                 return <div>지원되지 않는 블록 타입입니다.</div>;

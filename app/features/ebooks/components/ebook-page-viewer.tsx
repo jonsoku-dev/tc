@@ -63,6 +63,8 @@ type SidebarHighlight = {
     note?: string;
     createdAt: Date;
     pageNumber: number;
+    blockId?: string;
+    blockType?: string;
 };
 
 export function EbookPageViewer({
@@ -106,11 +108,13 @@ export function EbookPageViewer({
     }));
 
     // 텍스트 선택 처리
-    const handleTextSelect = ({ text, startOffset, endOffset, pageNumber }: {
+    const handleTextSelect = ({ text, startOffset, endOffset, pageNumber, blockId, blockType }: {
         text: string;
         startOffset: number;
         endOffset: number;
         pageNumber: number;
+        blockId?: string | null;
+        blockType?: string | null;
     }) => {
         if (!onAddHighlight) return;
 
@@ -120,6 +124,8 @@ export function EbookPageViewer({
             endOffset,
             color: "#FFEB3B", // 기본 색상
             pageNumber,
+            blockId: blockId || undefined,
+            blockType: blockType || undefined,
         };
 
         onAddHighlight(newHighlight);

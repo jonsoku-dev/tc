@@ -27,6 +27,8 @@ interface Highlight {
     note?: string;
     createdAt: Date;
     pageNumber: number;
+    blockId?: string;
+    blockType?: string;
 }
 
 interface EbookReaderSidebarProps {
@@ -151,6 +153,11 @@ export function EbookReaderSidebar({
                                                 />
                                                 <div className="text-xs text-gray-500">
                                                     {new Date(highlight.createdAt).toLocaleDateString()}
+                                                    {highlight.blockType && (
+                                                        <span className="ml-2 px-1 py-0.5 bg-gray-200 rounded text-xs">
+                                                            {highlight.blockType}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                             <Button

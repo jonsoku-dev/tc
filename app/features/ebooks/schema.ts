@@ -157,6 +157,8 @@ export const highlights = pgTable("highlights", {
     .notNull()
     .references(() => ebooks.ebook_id, { onDelete: "cascade" }),
   page_number: integer("page_number").notNull(),
+  block_id: uuid("block_id"),
+  block_type: varchar("block_type", { length: 50 }),
   start_position: integer("start_position").notNull(),
   end_position: integer("end_position").notNull(),
   text: text("text").notNull(),

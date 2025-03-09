@@ -7,6 +7,8 @@ export interface Highlight {
     note?: string;
     createdAt: Date;
     pageNumber: number;
+    blockId?: string;
+    blockType?: string;
 }
 
 export interface BookmarkItem {

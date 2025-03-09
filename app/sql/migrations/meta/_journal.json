@@ -36,6 +36,13 @@
       "when": 1741359163745,
       "tag": "0004_goofy_norrin_radd",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1741485953623,
+      "tag": "0005_open_hex",
+      "breakpoints": true
     }
   ]
 }

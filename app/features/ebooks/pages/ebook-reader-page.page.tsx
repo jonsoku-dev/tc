@@ -244,6 +244,8 @@ export async function action({ request }: Route.ActionArgs) {
                 const endPosition = parseInt(formData.get("endPosition") as string, 10);
                 const color = formData.get("color") as string;
                 const note = formData.get("note") as string;
+                const blockId = formData.get("blockId") as string;
+                const blockType = formData.get("blockType") as string;
 
                 if (!ebookId || !userId || isNaN(pageNumber) || !text || isNaN(startPosition) || isNaN(endPosition)) {
                     return { success: false, error: "필수 정보가 누락되었습니다." };
@@ -259,7 +261,9 @@ export async function action({ request }: Route.ActionArgs) {
                         start_position: startPosition,
                         end_position: endPosition,
                         color: color || "#FFEB3B",
-                        note
+                        note,
+                        block_id: blockId || null,
+                        block_type: blockType || null
                     })
                     .select();
 
@@ -275,7 +279,9 @@ export async function action({ request }: Route.ActionArgs) {
                         color: data[0].color || "#FFEB3B",
                         note: data[0].note || undefined,
                         createdAt: new Date(data[0].created_at || new Date()),
-                        pageNumber: data[0].page_number
+                        pageNumber: data[0].page_number,
+                        blockId: data[0].block_id || undefined,
+                        blockType: data[0].block_type || undefined
                     }
                 };
             }
@@ -503,6 +509,14 @@ function EbookReaderContent({ ebook, tableOfContents }: { ebook: any, tableOfCon
         formData.append("color", highlight.color);
         formData.append("note", highlight.note || "");
 
+        // 블록 정보 추가
+        if (highlight.blockId) {
+            formData.append("blockId", highlight.blockId);
+        }
+        if (highlight.blockType) {
+            formData.append("blockType", highlight.blockType);
+        }
+
         try {
             const response = await fetch(window.location.pathname, {
                 method: "POST",
@@ -517,7 +531,9 @@ function EbookReaderContent({ ebook, tableOfContents }: { ebook: any, tableOfCon
                     endOffset: result.highlight.endOffset,
                     color: result.highlight.color,
                     pageNumber: result.highlight.pageNumber,
-                    note: result.highlight.note
+                    note: result.highlight.note,
+                    blockId: result.highlight.blockId,
+                    blockType: result.highlight.blockType
                 });
             }
         } catch (error) {

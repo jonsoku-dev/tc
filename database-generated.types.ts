@@ -521,6 +521,8 @@ export type Database = {
       }
       highlights: {
         Row: {
+          block_id: string | null
+          block_type: string | null
           color: string | null
           created_at: string | null
           ebook_id: string
@@ -534,6 +536,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          block_id?: string | null
+          block_type?: string | null
           color?: string | null
           created_at?: string | null
           ebook_id: string
@@ -547,6 +551,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          block_id?: string | null
+          block_type?: string | null
           color?: string | null
           created_at?: string | null
           ebook_id?: string
